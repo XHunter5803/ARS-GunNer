@@ -2,9 +2,10 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.5.3 capabilities
+## Version 0.5.4 capabilities
 
 - ArchitectUI-inspired responsive admin dashboard with a light sidebar, compact header, page-title actions, KPI widgets, and mobile navigation
+- End-to-end editor flow: filter by news outlet or Reporter, save favorites, select real feed items, and send the selection to Workers AI
 
 - Argon-inspired responsive newsroom dashboard
 - Favorites and source management backed by Cloudflare D1
@@ -113,7 +114,7 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.5.3 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.5.4 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 

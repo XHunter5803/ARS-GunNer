@@ -4,8 +4,10 @@ import {
   ArrowRight,
   ArrowUpRight,
   Bell,
+  Bot,
   CalendarDays,
   Check,
+  CheckSquare2,
   ChevronRight,
   CircleCheck,
   Clock3,
@@ -22,7 +24,6 @@ import {
   MoreHorizontal,
   Newspaper,
   PencilLine,
-  Plus,
   Radar,
   RadioTower,
   RefreshCw,
@@ -32,6 +33,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Square,
   Star,
   UserCheck,
   WandSparkles,
@@ -40,6 +42,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import EditorialWorkspace from "./editorial-workspaces";
+import type { SelectedNewsSource } from "./editorial-workspaces";
 
 type NavId =
   | "dashboard"
@@ -80,6 +83,14 @@ type DashboardSummary = {
   event_clusters: number;
   ready_articles: number;
   publishing_queue: number;
+};
+
+type DashboardFavorite = {
+  id: number;
+  kind: "keyword" | "outlet" | "reporter";
+  value: string;
+  label: string;
+  isActive: boolean;
 };
 
 type StatItem = { label: string; value: string; change: string; icon: LucideIcon; tone: string };
@@ -302,13 +313,16 @@ function formatPublishedAt(value: string | null, fallback: string) {
   }).format(date);
 }
 
-function DiscoveryCard({ item }: { item: DiscoveryItem }) {
+function DiscoveryCard({ item, selected, onToggle }: { item: DiscoveryItem; selected: boolean; onToggle: (item: DiscoveryItem) => void }) {
   const languageLabel = item.language === "th" ? "TH" : item.language === "en" ? "EN" : "OTHER";
   const sourceLabel = item.source_name || "Unknown source";
   const summary = item.clean_text.trim() || "RSS feed นี้มีเฉพาะพาดหัว เปิดลิงก์ต้นฉบับเพื่ออ่านรายละเอียด";
   return (
-    <article className="group rounded-2xl border border-[#ebe8e2] bg-[#fffefa] p-4 transition-all hover:border-[#dfd9cf] hover:shadow-[0_12px_30px_rgba(30,42,63,.06)]">
+    <article className={`group rounded-xl border bg-[#fffefa] p-4 transition-all hover:shadow-[0_12px_30px_rgba(30,42,63,.06)] ${selected ? "border-[#7e9ee7] shadow-[0_0_0_3px_rgba(63,106,216,.08)]" : "border-[#ebe8e2] hover:border-[#cfd8e8]"}`}>
       <div className="flex items-start gap-3">
+        <button type="button" onClick={() => onToggle(item)} aria-label={selected ? `ยกเลิกเลือก ${item.headline}` : `เลือก ${item.headline}`} className={`mt-1 grid size-9 shrink-0 place-items-center rounded-xl border transition ${selected ? "border-[#3f6ad8] bg-[#3f6ad8] text-white" : "border-[#dfe4ea] bg-white text-[#9aa2ad] hover:border-[#7e9ee7] hover:text-[#3f6ad8]"}`}>
+          {selected ? <CheckSquare2 className="size-[17px]" /> : <Square className="size-[17px]" />}
+        </button>
         <div className="mt-1 grid size-9 shrink-0 place-items-center rounded-xl bg-[#eef4ff] text-[#3f6fc7]">
           <Rss className="size-[17px]" />
         </div>
@@ -446,6 +460,10 @@ export default function NewsroomDashboard() {
   const [toast, setToast] = useState("");
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [discoveryItems, setDiscoveryItems] = useState<DiscoveryItem[]>([]);
+  const [favorites, setFavorites] = useState<DashboardFavorite[]>([]);
+  const [selectedOutlet, setSelectedOutlet] = useState("");
+  const [selectedReporter, setSelectedReporter] = useState("");
+  const [selectedNewsIds, setSelectedNewsIds] = useState<number[]>([]);
   const [discoveryLoading, setDiscoveryLoading] = useState(true);
   const [discoveryError, setDiscoveryError] = useState("");
 
@@ -459,18 +477,44 @@ export default function NewsroomDashboard() {
     { label: "Publishing queue", value: String(summary.publishing_queue), change: "Telegram", icon: Clock3, tone: "orange" },
   ], [summary]);
 
+  const outletOptions = useMemo(() => {
+    const values = new Set(discoveryItems.map((item) => item.source_name?.trim()).filter((value): value is string => Boolean(value)));
+    favorites.filter((item) => item.kind === "outlet" && item.isActive).forEach((item) => values.add(item.label));
+    return [...values].sort((a, b) => a.localeCompare(b)).slice(0, 12);
+  }, [discoveryItems, favorites]);
+
+  const reporterOptions = useMemo(() => {
+    const values = new Set(discoveryItems.map((item) => item.reporter?.trim()).filter((value): value is string => Boolean(value)));
+    favorites.filter((item) => item.kind === "reporter" && item.isActive).forEach((item) => values.add(item.label));
+    return [...values].sort((a, b) => a.localeCompare(b)).slice(0, 12);
+  }, [discoveryItems, favorites]);
+
+  const selectedNews = useMemo<SelectedNewsSource[]>(() => selectedNewsIds.map((id) => discoveryItems.find((item) => item.id === id)).filter((item): item is DiscoveryItem => Boolean(item)), [discoveryItems, selectedNewsIds]);
+
   const visibleDiscoveryItems = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return discoveryItems.filter((item) => {
       const matchesFilter = feedFilter === "All" || item.language === feedFilter;
       const matchesQuery = !normalized || `${item.headline} ${item.clean_text} ${item.source_name ?? ""} ${item.reporter ?? ""}`.toLowerCase().includes(normalized);
-      return matchesFilter && matchesQuery;
+      const matchesOutlet = !selectedOutlet || item.source_name === selectedOutlet;
+      const matchesReporter = !selectedReporter || item.reporter === selectedReporter;
+      return matchesFilter && matchesQuery && matchesOutlet && matchesReporter;
     });
-  }, [discoveryItems, feedFilter, query]);
+  }, [discoveryItems, feedFilter, query, selectedOutlet, selectedReporter]);
+
+  const loadFavorites = useCallback(async () => {
+    try {
+      const response = await fetch("/api/v1/favorites", { headers: { accept: "application/json" } });
+      const payload = await response.json() as { data?: { favorites?: DashboardFavorite[] } };
+      if (response.ok) setFavorites(payload.data?.favorites ?? []);
+    } catch {
+      // Discovery remains usable if favorites are temporarily unavailable.
+    }
+  }, []);
 
   const loadDiscovery = useCallback(async () => {
     try {
-      const response = await fetch("/api/v1/discovery?limit=25", { headers: { accept: "application/json" } });
+      const response = await fetch("/api/v1/discovery?limit=50", { headers: { accept: "application/json" } });
       const payload = await response.json() as { data?: { summary?: DashboardSummary; items?: DiscoveryItem[] }; error?: { message?: string } };
       if (!response.ok) throw new Error(payload.error?.message || "โหลดข่าวไม่สำเร็จ");
       setSummary(payload.data?.summary ?? emptySummary);
@@ -484,9 +528,12 @@ export default function NewsroomDashboard() {
   }, []);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => void loadDiscovery(), 0);
+    const timeout = window.setTimeout(() => {
+      void loadDiscovery();
+      void loadFavorites();
+    }, 0);
     return () => window.clearTimeout(timeout);
-  }, [loadDiscovery]);
+  }, [loadDiscovery, loadFavorites]);
 
   const refreshDiscovery = () => {
     setDiscoveryLoading(true);
@@ -504,6 +551,41 @@ export default function NewsroomDashboard() {
     setActive(id);
     setMobileOpen(false);
     window.history.replaceState(null, "", id === "dashboard" ? "/" : `/?view=${id}`);
+  };
+
+  const toggleNews = (item: DiscoveryItem) => {
+    setSelectedNewsIds((ids) => ids.includes(item.id) ? ids.filter((id) => id !== item.id) : ids.length >= 12 ? ids : [...ids, item.id]);
+  };
+
+  const isFavorite = (kind: "outlet" | "reporter", value: string) => favorites.some((item) => item.kind === kind && item.value.toLocaleLowerCase() === value.toLocaleLowerCase());
+
+  const toggleFavorite = async (kind: "outlet" | "reporter", value: string) => {
+    const existing = favorites.find((item) => item.kind === kind && item.value.toLocaleLowerCase() === value.toLocaleLowerCase());
+    try {
+      if (existing) {
+        const response = await fetch(`/api/v1/favorites?id=${existing.id}`, { method: "DELETE" });
+        if (!response.ok) throw new Error();
+        setFavorites((items) => items.filter((item) => item.id !== existing.id));
+        setToast(`ยกเลิกติดตาม ${value} แล้ว`);
+      } else {
+        const response = await fetch("/api/v1/favorites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, value, label: value }) });
+        const payload = await response.json() as { data?: { favorite?: DashboardFavorite }; error?: { message?: string } };
+        if (!response.ok || !payload.data?.favorite) throw new Error(payload.error?.message || "บันทึกไม่สำเร็จ");
+        setFavorites((items) => [payload.data!.favorite!, ...items]);
+        setToast(`ติดตาม ${value} แล้ว`);
+      }
+    } catch (error) {
+      setToast(error instanceof Error && error.message ? error.message : "บันทึกรายการติดตามไม่สำเร็จ");
+    }
+  };
+
+  const openAiComposer = () => {
+    if (!selectedNews.length) {
+      setToast("เลือกข่าวอย่างน้อย 1 ข่าวก่อนส่งให้ AI");
+      return;
+    }
+    navigate("articles");
+    setToast(`ส่งข่าว ${selectedNews.length} รายการเข้า Article Editor แล้ว`);
   };
 
   const syncFeeds = async () => {
@@ -561,7 +643,7 @@ export default function NewsroomDashboard() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => void syncFeeds()} disabled={syncing} className="inline-flex items-center gap-2 rounded-full border border-[#dfe4ea] bg-white px-4 py-2.5 text-[11px] font-bold text-[#545d6b] shadow-sm hover:bg-[#f5f7fa] disabled:cursor-wait disabled:opacity-70"><RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />{syncing ? "Syncing..." : "Sync RSS"}</button>
-                <button type="button" onClick={() => { navigate("articles"); setToast("เปิด Article Pattern workspace แล้ว"); }} className="inline-flex items-center gap-2 rounded-full bg-[#3ac47d] px-5 py-2.5 text-[11px] font-bold text-white shadow-[0_6px_16px_rgba(58,196,125,.25)] hover:bg-[#31ad6e]"><Plus className="size-4" />Create article</button>
+                <button type="button" onClick={openAiComposer} className="inline-flex items-center gap-2 rounded-full bg-[#3ac47d] px-5 py-2.5 text-[11px] font-bold text-white shadow-[0_6px_16px_rgba(58,196,125,.25)] hover:bg-[#31ad6e]"><Bot className="size-4" />สร้างบทความจากข่าวที่เลือก {selectedNews.length ? `(${selectedNews.length})` : ""}</button>
               </div>
             </div>
           </section>
@@ -569,6 +651,23 @@ export default function NewsroomDashboard() {
           <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
             {dashboardStats.map((item) => <StatCard key={item.label} item={item} />)}
           </div>
+
+          {(active === "dashboard" || active === "discovery") ? <section className="mt-4 rounded-lg border border-[#e4e8ed] bg-white shadow-[0_4px_18px_rgba(0,0,0,.05)]">
+            <div className="flex flex-col gap-3 border-b border-[#e8ebef] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#3f6ad8]">Step 1 · เลือกสิ่งที่ต้องการติดตาม</p><h2 className="mt-1 text-base font-extrabold text-[#303949]">สำนักข่าวและ Reporter จากข่าวจริง</h2><p className="mt-1 text-[10px] text-[#8b929d]">กดชื่อเพื่อกรองข่าว · กดดาวเพื่อบันทึกเป็นรายการโปรดใน D1</p></div>
+              {(selectedOutlet || selectedReporter) ? <button type="button" onClick={() => { setSelectedOutlet(""); setSelectedReporter(""); }} className="rounded-full border border-[#dfe4ea] bg-white px-4 py-2 text-[10px] font-bold text-[#596372] hover:bg-[#f5f7fa]">แสดงข่าวทั้งหมด</button> : null}
+            </div>
+            <div className="grid gap-5 p-4 sm:p-5 xl:grid-cols-2">
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-bold text-[#5d6674]"><Globe2 className="size-4 text-[#3f6ad8]" />สำนักข่าว ({outletOptions.length})</div>
+                <div className="flex flex-wrap gap-2">{outletOptions.length ? outletOptions.map((outlet) => <div key={outlet} className={`inline-flex overflow-hidden rounded-full border ${selectedOutlet === outlet ? "border-[#3f6ad8] bg-[#e9efff]" : "border-[#e0e5eb] bg-[#f8f9fb]"}`}><button type="button" onClick={() => setSelectedOutlet(selectedOutlet === outlet ? "" : outlet)} className={`px-3 py-2 text-[10px] font-bold ${selectedOutlet === outlet ? "text-[#3f6ad8]" : "text-[#626b78]"}`}>{outlet}</button><button type="button" onClick={() => void toggleFavorite("outlet", outlet)} aria-label={`${isFavorite("outlet", outlet) ? "ยกเลิกติดตาม" : "ติดตาม"} ${outlet}`} className={`border-l px-2.5 ${isFavorite("outlet", outlet) ? "border-[#cddbf8] text-[#f7b924]" : "border-[#e0e5eb] text-[#a2a9b3] hover:text-[#f7b924]"}`}><Star className="size-3.5" fill={isFavorite("outlet", outlet) ? "currentColor" : "none"} /></button></div>) : <p className="text-[10px] text-[#9a9fa8]">ยังไม่มีชื่อสำนักข่าวใน Feed</p>}</div>
+              </div>
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-bold text-[#5d6674]"><UserCheck className="size-4 text-[#3ac47d]" />Reporter ({reporterOptions.length})</div>
+                <div className="flex flex-wrap gap-2">{reporterOptions.length ? reporterOptions.map((reporter) => <div key={reporter} className={`inline-flex overflow-hidden rounded-full border ${selectedReporter === reporter ? "border-[#3ac47d] bg-[#edf9f4]" : "border-[#e0e5eb] bg-[#f8f9fb]"}`}><button type="button" onClick={() => setSelectedReporter(selectedReporter === reporter ? "" : reporter)} className={`px-3 py-2 text-[10px] font-bold ${selectedReporter === reporter ? "text-[#258064]" : "text-[#626b78]"}`}>{reporter}</button><button type="button" onClick={() => void toggleFavorite("reporter", reporter)} aria-label={`${isFavorite("reporter", reporter) ? "ยกเลิกติดตาม" : "ติดตาม"} ${reporter}`} className={`border-l px-2.5 ${isFavorite("reporter", reporter) ? "border-[#cdebdc] text-[#f7b924]" : "border-[#e0e5eb] text-[#a2a9b3] hover:text-[#f7b924]"}`}><Star className="size-3.5" fill={isFavorite("reporter", reporter) ? "currentColor" : "none"} /></button></div>) : <p className="text-[10px] text-[#9a9fa8]">Feed นี้ยังไม่ได้ส่งชื่อ Reporter · เพิ่มเองได้ที่ Favorites</p>}</div>
+              </div>
+            </div>
+          </section> : null}
 
           {active === "dashboard" || active === "discovery" ? (
             <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,.75fr)]">
@@ -586,11 +685,12 @@ export default function NewsroomDashboard() {
                   </div>
                 </div>
                 <div className="space-y-2.5 p-4 sm:p-5">
+                  {selectedNews.length ? <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#cddbf8] bg-[#f4f7ff] p-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#3f6ad8]">Step 2 · เลือกแล้ว {selectedNews.length} ข่าว</p><p className="mt-1 text-[10px] text-[#6f7886]">ข่าวแรกเป็น Main Source และข่าวถัดไปเป็น Supporting Sources</p></div><div className="flex gap-2"><button type="button" onClick={() => setSelectedNewsIds([])} className="rounded-full border border-[#d4dce9] bg-white px-3 py-2 text-[9px] font-bold text-[#687180]">ล้างที่เลือก</button><button type="button" onClick={openAiComposer} className="inline-flex items-center gap-2 rounded-full bg-[#3f6ad8] px-4 py-2 text-[10px] font-bold text-white shadow-[0_5px_14px_rgba(63,106,216,.22)]"><Bot className="size-4" />สร้างบทความด้วย AI</button></div></div> : <div className="mb-4 rounded-xl border border-dashed border-[#cfd6df] bg-[#fafbfc] p-4 text-center text-[10px] font-semibold text-[#7d8590]">Step 2 · กดช่องสี่เหลี่ยมหน้าข่าวที่ต้องการ แล้วส่งให้ AI</div>}
                   {discoveryLoading ? (
                     <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><RefreshCw className="mx-auto size-6 animate-spin text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">กำลังโหลดข่าวจาก D1</p></div></div>
                   ) : discoveryError ? (
                     <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#efc9cc] bg-[#fff7f7] text-center"><div><ShieldCheck className="mx-auto size-6 text-[#d04a54]" /><p className="mt-3 text-xs font-bold text-[#535b68]">{discoveryError}</p><button type="button" onClick={refreshDiscovery} className="mt-2 text-[10px] font-bold text-[#df3d48]">ลองใหม่</button></div></div>
-                  ) : visibleDiscoveryItems.length ? visibleDiscoveryItems.map((item) => <DiscoveryCard key={item.id} item={item} />) : (
+                  ) : visibleDiscoveryItems.length ? visibleDiscoveryItems.map((item) => <DiscoveryCard key={item.id} item={item} selected={selectedNewsIds.includes(item.id)} onToggle={toggleNews} />) : (
                     <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">ไม่พบข่าวที่ตรงกับตัวกรอง</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
                   )}
                 </div>
@@ -602,13 +702,13 @@ export default function NewsroomDashboard() {
               </aside>
             </div>
           ) : active === "favorites" || active === "sources" || active === "fact-check" || active === "articles" || active === "publishing" ? (
-            <div className="mt-4"><EditorialWorkspace section={active} notify={setToast} /></div>
+            <div className="mt-4"><EditorialWorkspace section={active} notify={setToast} selectedNews={selectedNews} /></div>
           ) : (
             <div className="mt-4"><WorkspacePanel section={active} onAction={setToast} /></div>
           )}
 
           <footer className="mt-6 flex flex-col gap-2 border-t border-[#ddd8d0] pt-4 text-[9px] font-medium text-[#979ba3] sm:flex-row sm:items-center sm:justify-between">
-            <p>ARS GunNer v0.5.3 · ArchitectUI-inspired newsroom · Live D1 discovery</p>
+            <p>ARS GunNer v0.5.4 · Select sources → Select news → Workers AI article</p>
             <p className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#56bc91]" /> Cloudflare-ready architecture</p>
           </footer>
         </div>

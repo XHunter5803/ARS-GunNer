@@ -49,6 +49,17 @@ type Source = {
   demo?: boolean;
 };
 
+export type SelectedNewsSource = {
+  id: number;
+  headline: string;
+  canonical_url: string;
+  reporter: string | null;
+  published_at: string | null;
+  clean_text: string;
+  source_name: string | null;
+  source_type: string | null;
+};
+
 type ValidationResult = {
   valid: boolean;
   readiness_score: number;
@@ -82,13 +93,7 @@ const factGroups = {
   ],
 };
 
-const initialParagraphs = [
-  "เหตุการณ์ตัวอย่างเริ่มจากแผนเดิมที่ยังไม่มีความชัดเจน ทำให้สโมสรอาจต้องสำรวจทางเลือกใหม่ โดยข้อมูลปัจจุบันยืนยันได้เพียงว่ามีการติดตามสถานการณ์เท่านั้น",
-  "กระแสก่อนหน้านี้ยังเชื่อมโยงสโมสรกับอีกทางเลือกหนึ่ง เพราะมี Reporter รายงานความสนใจ แต่ยังไม่มีประกาศทางการหรือหลักฐานว่ามีการยื่นข้อเสนอ",
-  "แม้จะมีกระแสว่าทางเลือกเดิมยังอยู่ในแผน แต่ข้อมูลจากแหล่งอิสระยังไม่เพียงพอ จึงควรมองว่าเป็นหนึ่งในแผนสำรองมากกว่าจะเป็นข้อสรุป",
-  "ข้อจำกัดสำคัญคือรายงานแต่ละแหล่งให้กรอบเวลาไม่ตรงกัน และยังไม่มีตัวเลขหรือเงื่อนไขที่ยืนยันได้ การประเมินจึงต้องรักษาระดับข่าวไว้ที่ความสนใจ",
-  "จากข้อมูลปัจจุบัน สโมสรน่าจะเปิดกว้างต่อหลายทางเลือกมากกว่ามุ่งไปที่เป้าหมายเดียว หากเงื่อนไขไม่เปลี่ยนแปลง ทิศทางที่ชัดเจนขึ้นต้องรอข้อมูลต้นทางเพิ่มเติม",
-];
+const emptyParagraphs = ["", "", "", "", ""];
 
 function StatusBanner({ mode, message }: { mode: "loading" | "live" | "demo" | "error"; message: string }) {
   const style = mode === "live" ? "bg-[#eaf9f2] text-[#247a5e]" : mode === "error" ? "bg-[#fff0f1] text-[#b8343d]" : "bg-[#fff5dd] text-[#8d6414]";
@@ -278,17 +283,43 @@ function FactCheckWorkspace({ notify }: { notify: (message: string) => void }) {
   );
 }
 
-function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
+function ArticleWorkspace({ notify, selectedNews }: { notify: (message: string) => void; selectedNews: SelectedNewsSource[] }) {
   const [language, setLanguage] = useState<"th" | "en" | "bilingual">("th");
-  const [headline, setHeadline] = useState("เมื่อแผนเดิมยังไม่ชัดเจน สโมสรจึงอาจต้องเปิดทางเลือกใหม่โดยไม่เร่งฟันธง");
-  const [paragraphs, setParagraphs] = useState(initialParagraphs);
+  const [headline, setHeadline] = useState("");
+  const [paragraphs, setParagraphs] = useState(emptyParagraphs);
+  const [closingQuestion, setClosingQuestion] = useState("");
   const [signature, setSignature] = useState("— ตลาดไม่ปิด ข่าวก็ยังไม่จบ");
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showJson, setShowJson] = useState(false);
   const [articleId, setArticleId] = useState<number | null>(null);
   const [workflowStatus, setWorkflowStatus] = useState("unsaved");
   const [working, setWorking] = useState(false);
-  const article = useMemo(() => ({ language, pattern: "perspective" as const, category: "ฟุตบอล", label: "มุมมอง", headline, paragraphs, closing_question: "สุดท้ายจะจบที่ทางเลือกเดิม หรือสถานการณ์จะพลิกไปสู่แผนใหม่กันแน่...", signature, hashtags: ["#NorthbridgeFC", "#TransferNews", "#Football", "#TransferTruth"], main_source: { source_name: "Official Club Feed", reporter: "Club Media Team", published_at: "2026-07-22T09:00:00+07:00", url: "https://example.com/official-update" }, supporting_sources: [{ source_name: "Demo Sports Wire", reporter: "Demo Reporter", published_at: "2026-07-22T09:20:00+07:00", url: "https://example.org/report" }], confirmed_facts: ["สโมสรเผยแพร่ประกาศเกี่ยวกับการเปลี่ยนบทบาททีมงาน"], reported_claims: ["มีรายงานว่าสโมสรกำลังสำรวจทางเลือกใหม่"], conflicts: [] as string[] }), [headline, language, paragraphs, signature]);
+  const selectedSources = useMemo(() => selectedNews.map((item) => ({
+    source_name: item.source_name || "Unknown source",
+    reporter: item.reporter || undefined,
+    published_at: item.published_at || undefined,
+    url: item.canonical_url,
+    headline: item.headline,
+    article_text: item.clean_text || item.headline,
+    source_type: (["official", "original", "reporter", "outlet"].includes(item.source_type || "") ? item.source_type : "outlet") as "official" | "original" | "reporter" | "outlet",
+    reported_claims: [item.clean_text || item.headline],
+  })), [selectedNews]);
+  const article = useMemo(() => ({
+    language,
+    pattern: "perspective" as const,
+    category: "ฟุตบอล",
+    label: "มุมมอง",
+    headline,
+    paragraphs,
+    closing_question: closingQuestion,
+    signature,
+    hashtags: ["#TransferNews", "#Football", "#TransferTruth"],
+    main_source: selectedSources[0] ? { source_name: selectedSources[0].source_name, reporter: selectedSources[0].reporter, published_at: selectedSources[0].published_at, url: selectedSources[0].url } : { source_name: "", url: "" },
+    supporting_sources: selectedSources.slice(1).map((source) => ({ source_name: source.source_name, reporter: source.reporter, published_at: source.published_at, url: source.url })),
+    confirmed_facts: [] as string[],
+    reported_claims: selectedSources.map((source) => source.article_text).filter(Boolean),
+    conflicts: [] as string[],
+  }), [closingQuestion, headline, language, paragraphs, selectedSources, signature]);
 
   const updateParagraph = (index: number, value: string) => setParagraphs((items) => items.map((item, current) => current === index ? value : item));
   const validate = async () => {
@@ -300,6 +331,10 @@ function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
   };
 
   const generateWithAi = async () => {
+    if (!selectedSources.length) {
+      notify("กรุณากลับไปหน้า Dashboard แล้วเลือกข่าวอย่างน้อย 1 ข่าว");
+      return;
+    }
     setWorking(true);
     try {
       const response = await fetch("/api/v1/articles/generate", {
@@ -309,21 +344,19 @@ function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
           language,
           category: "ฟุตบอล",
           signature,
-          brand_hashtags: ["#NorthbridgeFC", "#TransferNews", "#Football", "#TransferTruth"],
-          sources: [
-            { source_name: "Official Club Feed", source_type: "official", reporter: "Club Media Team", published_at: "2026-07-22T09:00:00+07:00", url: "https://example.com/official-update", headline: "Demo official staff update", article_text: "สโมสรเผยแพร่ประกาศเกี่ยวกับการเปลี่ยนบทบาททีมงาน", confirmed_facts: ["สโมสรเผยแพร่ประกาศเกี่ยวกับการเปลี่ยนบทบาททีมงาน"] },
-            { source_name: "Demo Sports Wire", source_type: "original", reporter: "Demo Reporter", published_at: "2026-07-22T09:20:00+07:00", url: "https://example.org/report", headline: "Demo report about transfer options", article_text: "มีรายงานว่าสโมสรกำลังสำรวจทางเลือกใหม่ แต่ยังไม่มีการยืนยันการเจรจา", reported_claims: ["สโมสรกำลังสำรวจทางเลือกใหม่"] },
-          ],
+          brand_hashtags: ["#TransferNews", "#Football", "#TransferTruth"],
+          sources: selectedSources,
         }),
       });
       const payload = await response.json() as { data?: { article?: typeof article; validation?: ValidationResult }; error?: { message?: string } };
       if (!response.ok || !payload.data?.article) return notify(payload.error?.message || "Workers AI สร้างบทความไม่สำเร็จ");
       setHeadline(payload.data.article.headline);
       setParagraphs(payload.data.article.paragraphs);
+      setClosingQuestion(payload.data.article.closing_question);
       setSignature(payload.data.article.signature);
       setValidation(payload.data.validation ?? null);
       setWorkflowStatus("ai-draft");
-      notify("Workers AI สร้าง Draft และผ่านการตรวจ JSON แล้ว");
+      notify(`Workers AI สร้าง Draft จากข่าวจริง ${selectedSources.length} แหล่งแล้ว`);
     } finally {
       setWorking(false);
     }
@@ -362,11 +395,19 @@ function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
   return (
     <section className="grid gap-4 2xl:grid-cols-[1.35fr_.65fr]">
       <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
+        <div className={`mb-5 rounded-xl border p-4 ${selectedNews.length ? "border-[#cddbf8] bg-[#f5f8ff]" : "border-[#f0c9cc] bg-[#fff7f7]"}`}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#3f6ad8]">ข่าวต้นทางที่เลือก</p><h3 className="mt-1 text-sm font-extrabold text-[#273044]">{selectedNews.length ? `${selectedNews.length} ข่าวพร้อมส่งให้ AI` : "ยังไม่ได้เลือกข่าว"}</h3></div>
+            <span className="rounded-full bg-white px-3 py-1 text-[9px] font-bold text-[#596372] shadow-sm">Main + supporting sources</span>
+          </div>
+          {selectedNews.length ? <div className="mt-3 space-y-2">{selectedNews.map((item, index) => <div key={item.id} className="flex items-start gap-3 rounded-lg bg-white p-3"><span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[9px] font-extrabold ${index === 0 ? "bg-[#3f6ad8] text-white" : "bg-[#e9efff] text-[#3f6ad8]"}`}>{index + 1}</span><div className="min-w-0"><p className="line-clamp-2 text-[11px] font-bold leading-5 text-[#303949]">{item.headline}</p><p className="mt-1 text-[9px] text-[#89919d]">{item.source_name || "Unknown source"} · {item.reporter || "ไม่ระบุ Reporter"}</p></div></div>)}</div> : <p className="mt-2 text-[10px] leading-5 text-[#9a5b61]">กลับไปหน้า Dashboard เลือกข่าว แล้วกด “สร้างบทความด้วย AI”</p>}
+        </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Perspective pattern</p><h2 className="mt-1 text-lg font-extrabold">Article editor</h2></div><div className="grid grid-cols-3 rounded-xl bg-[#f1eee8] p-1">{(["th", "en", "bilingual"] as const).map((item) => <button type="button" key={item} onClick={() => setLanguage(item)} className={`rounded-lg px-3 py-2 text-[9px] font-bold ${language === item ? "bg-white text-[#222c3f] shadow-sm" : "text-[#858b96]"}`}>{item}</button>)}</div></div>
         <label htmlFor="article-headline" className="mt-5 block text-[10px] font-bold text-[#606775]">พาดหัวเหตุและผล</label><textarea id="article-headline" value={headline} onChange={(event) => setHeadline(event.target.value)} rows={2} className="mt-2 w-full resize-none rounded-xl border border-[#dedad3] bg-[#fffefa] p-3 text-sm font-bold leading-6 outline-none focus:border-[#dc626a] focus:ring-4 focus:ring-[#ef4b55]/10" />
         <div className="mt-4 space-y-3">{paragraphs.map((paragraph, index) => <div key={index}><div className="mb-1.5 flex items-center justify-between"><label htmlFor={`paragraph-${index}`} className="text-[10px] font-bold text-[#606775]">ย่อหน้าที่ {index + 1}</label><span className="text-[9px] text-[#9ba0a9]">{paragraph.length} chars</span></div><textarea id={`paragraph-${index}`} value={paragraph} onChange={(event) => updateParagraph(index, event.target.value)} rows={3} className="w-full resize-y rounded-xl border border-[#e1ddd6] bg-[#fffefa] p-3 text-xs leading-5 outline-none focus:border-[#dc626a]" /></div>)}</div>
         <label htmlFor="article-signature" className="mt-4 block text-[10px] font-bold text-[#606775]">Signature</label><input id="article-signature" value={signature} onChange={(event) => setSignature(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dedad3] bg-[#fffefa] px-3 text-xs outline-none focus:border-[#dc626a]" />
-        <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void generateWithAi()} disabled={working} className="inline-flex items-center gap-2 rounded-xl bg-[#18243a] px-4 py-3 text-[11px] font-bold text-white disabled:opacity-60"><Bot className="size-4" />Workers AI draft</button><button type="button" onClick={() => void validate()} disabled={working} className="inline-flex items-center gap-2 rounded-xl bg-[#ef4b55] px-4 py-3 text-[11px] font-bold text-white disabled:opacity-60"><ShieldCheck className="size-4" />Validate draft</button><button type="button" onClick={() => void saveRevision()} disabled={working} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664] disabled:opacity-60"><Save className="size-4" />Save revision</button><button type="button" onClick={() => setShowJson(!showJson)} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664]"><FileJson2 className="size-4" />{showJson ? "Hide JSON" : "Preview JSON"}</button></div>
+        <label htmlFor="article-closing" className="mt-4 block text-[10px] font-bold text-[#606775]">คำถามปิดท้าย</label><textarea id="article-closing" value={closingQuestion} onChange={(event) => setClosingQuestion(event.target.value)} rows={2} className="mt-2 w-full resize-y rounded-xl border border-[#e1ddd6] bg-[#fffefa] p-3 text-xs leading-5 outline-none focus:border-[#dc626a]" />
+        <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void generateWithAi()} disabled={working || !selectedNews.length} className="inline-flex items-center gap-2 rounded-xl bg-[#3f6ad8] px-4 py-3 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"><Bot className="size-4" />{working ? "AI กำลังเขียน..." : "สร้างบทความจากข่าวที่เลือก"}</button><button type="button" onClick={() => void validate()} disabled={working || !headline.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#ef4b55] px-4 py-3 text-[11px] font-bold text-white disabled:opacity-60"><ShieldCheck className="size-4" />Validate draft</button><button type="button" onClick={() => void saveRevision()} disabled={working || !headline.trim()} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664] disabled:opacity-60"><Save className="size-4" />Save revision</button><button type="button" onClick={() => setShowJson(!showJson)} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664]"><FileJson2 className="size-4" />{showJson ? "Hide JSON" : "Preview JSON"}</button></div>
       </article>
       <aside className="space-y-4">
         <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Readiness gate</p><h2 className="mt-1 text-lg font-extrabold">{validation ? `${validation.readiness_score}/100` : "Not checked"}</h2></div><div className={`grid size-12 place-items-center rounded-2xl ${validation?.readiness_score && validation.readiness_score >= 85 ? "bg-[#eaf9f2] text-[#258064]" : "bg-[#fff2e8] text-[#b46329]"}`}><ShieldCheck className="size-6" /></div></div>{validation ? <div className="mt-4"><div className="h-2 overflow-hidden rounded-full bg-[#ece9e3]"><div className="h-full rounded-full bg-[linear-gradient(90deg,#ef4b55,#ff777e)]" style={{ width: `${validation.readiness_score}%` }} /></div><p className="mt-3 text-[10px] font-bold uppercase tracking-[.1em] text-[#6a7180]">Status: {validation.status}</p><div className="mt-3 space-y-2">{validation.readiness_notes.length ? validation.readiness_notes.map((note) => <p key={note} className="flex items-start gap-2 text-[10px] leading-4 text-[#777e89]"><ChevronRight className="mt-0.5 size-3 shrink-0 text-[#ef4b55]" />{note}</p>) : <p className="text-[10px] text-[#287a60]">ผ่านกฎโครงสร้างและภาษา</p>}</div></div> : <p className="mt-4 text-[10px] leading-5 text-[#838994]">กด Validate draft เพื่อตรวจแหล่งข่าว โครงสร้าง ภาษา และข้อความหลุดก่อนอนุมัติ</p>}</article>
@@ -492,10 +533,10 @@ function PublishingWorkspace({ notify }: { notify: (message: string) => void }) 
   );
 }
 
-export default function EditorialWorkspace({ section, notify }: { section: InteractiveSection; notify: (message: string) => void }) {
+export default function EditorialWorkspace({ section, notify, selectedNews = [] }: { section: InteractiveSection; notify: (message: string) => void; selectedNews?: SelectedNewsSource[] }) {
   if (section === "favorites") return <FavoritesWorkspace notify={notify} />;
   if (section === "sources") return <SourcesWorkspace notify={notify} />;
   if (section === "fact-check") return <FactCheckWorkspace notify={notify} />;
-  if (section === "articles") return <ArticleWorkspace notify={notify} />;
+  if (section === "articles") return <ArticleWorkspace notify={notify} selectedNews={selectedNews} />;
   return <PublishingWorkspace notify={notify} />;
 }

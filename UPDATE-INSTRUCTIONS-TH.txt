@@ -1,11 +1,13 @@
-ARS GunNer ArchitectUI Update v0.5.3
+ARS GunNer Workflow Update v0.5.4
 
 1. แตกไฟล์ ZIP
-2. คัดลอกไฟล์และโฟลเดอร์ทั้งหมดใน ARS_GunNer_ArchitectUI_053
-3. วางทับในโฟลเดอร์ ARS-GunNer ที่เปิดด้วย GitHub Desktop
-4. ตรวจให้เห็นรายการ Changed files
-5. ใส่ Summary: Apply ArchitectUI dashboard v0.5.3
+2. เปิดโฟลเดอร์ ARS_GunNer_Workflow_054
+3. คัดลอกไฟล์และโฟลเดอร์ทั้งหมดข้างใน
+4. วางทับในโฟลเดอร์ ARS-GunNer ที่มี package.json
+5. GitHub Desktop: Summary ใส่ Fix newsroom workflow v0.5.4
 6. กด Commit to main แล้วกด Push origin
 7. รอ Cloudflare Build และ Deploy สำเร็จ
+8. เปิด /api/v1/health และตรวจว่า version เป็น 0.5.4
 
-ระบบ D1, RSS, Article, API และ Telegram เดิมยังอยู่ครบ การอัปเดตนี้เปลี่ยนหน้าตา Dashboard และปรับ Build script ให้ใช้ได้เมื่อคัดลอกจาก ZIP บน Windows
+Flow ใหม่:
+เลือกสำนักข่าวหรือ Reporter -> กดดาวเพื่อบันทึก Favorite -> เลือกข่าว 1-12 รายการ -> สร้างบทความด้วย AI -> ตรวจ/แก้ Draft -> Validate -> Save revision

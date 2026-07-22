@@ -48,6 +48,8 @@ test("renders the ARS GunNer newsroom shell with live discovery disclosure", asy
   assert.match(html, /Live discovery feed/i);
   assert.match(html, /ข้อมูล RSS จริงจาก D1/i);
   assert.match(html, /Article readiness/i);
+  assert.match(html, /สำนักข่าวและ Reporter จากข่าวจริง/i);
+  assert.match(html, /สร้างบทความจากข่าวที่เลือก/i);
 });
 
 test("health endpoint returns a structured service response", async () => {
@@ -62,7 +64,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.5.3");
+  assert.equal(payload.data.version, "0.5.4");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });
