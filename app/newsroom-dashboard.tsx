@@ -583,7 +583,7 @@ export default function NewsroomDashboard() {
           )}
 
           <footer className="mt-6 flex flex-col gap-2 border-t border-[#ddd8d0] pt-4 text-[9px] font-medium text-[#979ba3] sm:flex-row sm:items-center sm:justify-between">
-            <p>ARS GunNer v0.5 · Cloudflare-ready · Telegram delivery disabled by default</p>
+            <p>ARS GunNer v0.5.1 · Cloudflare-ready · Telegram delivery disabled by default</p>
             <p className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#56bc91]" /> Cloudflare-ready architecture</p>
           </footer>
         </div>

@@ -2,7 +2,7 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.5 capabilities
+## Version 0.5.1 capabilities
 
 - Argon-inspired responsive newsroom dashboard
 - Favorites and source management backed by Cloudflare D1
@@ -63,19 +63,18 @@ npm run db:generate
 This package includes `wrangler.jsonc` connected to the production D1 database
 `ars-gunner-newsroom`. Telegram delivery stays disabled during deployment.
 
-### Option A: Cloudflare Workers Builds with GitHub
+Use Git or GitHub Desktop to upload this repository so nested folders remain intact. Do not select every file from every subfolder and upload them all into the repository root. The repository must keep paths such as `app/page.tsx`, `db/schema.ts`, `drizzle/0000_green_brother_voodoo.sql`, `lib/social-publishing.ts`, and `worker/index.ts`.
 
-1. Extract the ZIP and upload the extracted files—not the ZIP itself—to the root of the GitHub repository.
-2. In Cloudflare, open **Workers & Pages**, choose **Create application**, then import the GitHub repository.
-3. Use production branch `main`, build command `npm run build`, and deploy command `npx wrangler deploy`.
-4. Deploy once, then open the resulting Worker and confirm its D1 binding is named `DB` and its AI binding is named `AI`.
-5. Apply the D1 migrations before using the dashboard.
+Cloudflare Workers Builds settings:
 
-Cloudflare Workers Builds runs the build command first and the Wrangler deploy command second. Future pushes to `main` can redeploy automatically.
+```text
+Production branch: main
+Build command: npm run build
+Deploy command: npx wrangler deploy
+Root directory: /
+```
 
-### Option B: deploy from a terminal
-
-Requirements: Node.js 22 and a Cloudflare account.
+To deploy from a terminal instead:
 
 ```bash
 npm ci
@@ -84,18 +83,9 @@ npm run db:migrate:remote
 npm run deploy:cloudflare
 ```
 
-The migration command applies every unapplied SQL file in `drizzle/` to the configured remote D1 database. Review the database name in Wrangler's confirmation prompt before accepting it.
+After the first deployment, add `TELEGRAM_BOT_TOKEN` as a Secret and `TELEGRAM_CHAT_ID` as a text variable in the deployed Worker. Keep `SOCIAL_PUBLISHING_ENABLED=false` until the Worker URL, D1 migrations, access policy, and Telegram preview have been verified.
 
-### Production variables and secrets
-
-In the deployed Worker, open **Settings → Variables and Secrets** and add:
-
-- Secret `TELEGRAM_BOT_TOKEN`
-- Text variable `TELEGRAM_CHAT_ID`
-- Secret `CRON_SECRET`
-- Text variable `SOCIAL_PUBLISHING_ENABLED=false`
-
-Never commit `.dev.vars`, `.env`, bot tokens, or Cloudflare API tokens. The repository ignores local secret files. Keep publishing disabled until the Worker URL, D1 migrations, authentication/access policy, and Telegram preview have been verified.
+See [CLOUDFLARE-UPLOAD.md](./CLOUDFLARE-UPLOAD.md) for the safe repository replacement steps.
 
 ## Cloudflare bindings
 
@@ -121,7 +111,7 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.5 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.5.1 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 
