@@ -192,9 +192,9 @@ const workspaceCards: Record<Exclude<NavId, "dashboard" | "discovery">, { icon: 
 
 function LogoMark() {
   return (
-    <div className="relative grid size-11 place-items-center rounded-2xl bg-[linear-gradient(145deg,#ff5b62,#c9232c)] text-sm font-black tracking-[-0.08em] text-white shadow-[0_10px_30px_rgba(232,55,65,.3)]">
+    <div className="relative grid size-11 place-items-center rounded-xl bg-[linear-gradient(145deg,#3f6ad8,#794cdb)] text-sm font-black tracking-[-0.08em] text-white shadow-[0_8px_24px_rgba(63,106,216,.24)]">
       ARS
-      <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-[#101b2d] bg-[#56d6aa]" />
+      <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-[#3ac47d]" />
     </div>
   );
 }
@@ -205,17 +205,17 @@ function NavButton({ item, active, onSelect }: { item: NavItem; active: boolean;
     <button
       type="button"
       onClick={() => onSelect(item.id)}
-      className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-all ${
+      className={`architect-nav-button group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-all ${
         active
-          ? "bg-white/[.09] font-semibold text-white shadow-[inset_3px_0_0_#ef4b55]"
-          : "text-slate-400 hover:bg-white/[.05] hover:text-white"
+          ? "architect-nav-button--active font-semibold"
+          : "text-[#5f6672] hover:bg-[#f0f3f7] hover:text-[#3f6ad8]"
       }`}
       aria-current={active ? "page" : undefined}
     >
-      <Icon className={`size-[18px] ${active ? "text-[#ff646d]" : "text-slate-500 group-hover:text-slate-300"}`} />
+      <Icon className={`size-[18px] ${active ? "text-[#3f6ad8]" : "text-[#9aa3ad] group-hover:text-[#3f6ad8]"}`} />
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
       {item.badge ? (
-        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-[#ef4b55] text-white" : "bg-white/[.08] text-slate-400"}`}>
+        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-[#3f6ad8] text-white" : "bg-[#eef1f5] text-[#7b8490]"}`}>
           {item.badge}
         </span>
       ) : null}
@@ -230,43 +230,43 @@ function Sidebar({ active, mobileOpen, onSelect, onClose }: { active: NavId; mob
         type="button"
         aria-label="ปิดเมนู"
         onClick={onClose}
-        className={`fixed inset-0 z-40 bg-[#07101e]/70 backdrop-blur-sm transition-opacity lg:hidden ${mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        className={`fixed inset-0 z-40 bg-[#172033]/45 backdrop-blur-sm transition-opacity lg:hidden ${mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#101b2d] px-4 py-5 text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="mb-7 flex items-center gap-3 px-1">
+      <aside className={`architect-sidebar fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col border-r border-[#e8ebef] bg-white px-4 py-4 text-[#343a40] shadow-[7px_0_60px_rgba(0,0,0,.05)] transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="mb-5 flex h-12 items-center gap-3 px-1">
           <LogoMark />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-base font-extrabold tracking-tight">GunNer</span>
-              <span className="rounded bg-[#ef4b55]/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.14em] text-[#ff747c]">Beta</span>
+              <span className="text-base font-extrabold tracking-tight text-[#2f3440]">GunNer</span>
+              <span className="rounded bg-[#e9efff] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.14em] text-[#3f6ad8]">Pro</span>
             </div>
-            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[.16em] text-slate-500">Newsroom intelligence</p>
+            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[.16em] text-[#98a0ab]">Newsroom intelligence</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="ปิดเมนู" className="grid size-9 place-items-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white lg:hidden">
+          <button type="button" onClick={onClose} aria-label="ปิดเมนู" className="grid size-9 place-items-center rounded-lg text-[#8e96a2] hover:bg-[#f0f3f7] hover:text-[#343a40] lg:hidden">
             <X className="size-5" />
           </button>
         </div>
 
         <nav aria-label="Main navigation" className="flex-1 overflow-y-auto pr-1">
-          <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[.2em] text-slate-600">Monitor</p>
+          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#3f6ad8]">Main navigation</p>
           <div className="space-y-1">
             {primaryNav.map((item) => <NavButton key={item.id} item={item} active={active === item.id} onSelect={onSelect} />)}
           </div>
-          <p className="mt-7 px-3 pb-2 text-[9px] font-bold uppercase tracking-[.2em] text-slate-600">Editorial workflow</p>
+          <p className="mt-6 px-3 pb-2 text-[10px] font-bold uppercase tracking-[.16em] text-[#3f6ad8]">Editorial workflow</p>
           <div className="space-y-1">
             {workflowNav.map((item) => <NavButton key={item.id} item={item} active={active === item.id} onSelect={onSelect} />)}
           </div>
         </nav>
 
-        <div className="mt-4 border-t border-white/[.07] pt-4">
+        <div className="mt-4 border-t border-[#eceff3] pt-4">
           <NavButton item={{ id: "settings", label: "Settings", labelTh: "ตั้งค่า", icon: Settings }} active={active === "settings"} onSelect={onSelect} />
-          <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white/[.04] p-3">
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#263957] text-xs font-bold text-white">ED</div>
+          <div className="mt-4 flex items-center gap-3 rounded-xl bg-[#f5f7fa] p-3">
+            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#3f6ad8] text-xs font-bold text-white">ED</div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-white">Demo Editor</p>
-              <p className="truncate text-[10px] text-slate-500">Approver workspace</p>
+              <p className="truncate text-xs font-semibold text-[#343a40]">Demo Editor</p>
+              <p className="truncate text-[10px] text-[#8c95a1]">Approver workspace</p>
             </div>
-            <MoreHorizontal className="size-4 text-slate-500" />
+            <MoreHorizontal className="size-4 text-[#9aa2ad]" />
           </div>
         </div>
       </aside>
@@ -277,16 +277,16 @@ function Sidebar({ active, mobileOpen, onSelect, onClose }: { active: NavId; mob
 function StatCard({ item }: { item: StatItem }) {
   const Icon = item.icon;
   return (
-    <article className="rounded-[20px] border border-[#e7e4de] bg-white p-4 shadow-[0_8px_26px_rgba(36,45,64,.04)] transition-transform hover:-translate-y-0.5">
+    <article className="architect-stat-card rounded-lg border border-[#e6e9ed] bg-white p-5 shadow-[0_4px_18px_rgba(0,0,0,.05)] transition-transform hover:-translate-y-0.5">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[.1em] text-[#8c929f]">{item.label}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[#8c929f]">{item.label}</p>
           <div className="mt-2 flex items-end gap-2">
-            <strong className="text-[28px] font-extrabold leading-none tracking-[-.04em] text-[#172033]">{item.value}</strong>
+            <strong className="text-[30px] font-extrabold leading-none tracking-[-.04em] text-[#343a40]">{item.value}</strong>
             <span className={`stat-change stat-change--${item.tone}`}>{item.change}</span>
           </div>
         </div>
-        <div className={`stat-icon stat-icon--${item.tone}`}><Icon className="size-[18px]" /></div>
+        <div className={`stat-icon stat-icon--${item.tone}`}><Icon className="size-5" /></div>
       </div>
     </article>
   );
@@ -337,7 +337,7 @@ function DiscoveryCard({ item }: { item: DiscoveryItem }) {
 
 function ReadinessCard({ onReview }: { onReview: () => void }) {
   return (
-    <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.05)]">
+    <article className="rounded-lg border border-[#e4e8ed] bg-white p-5 shadow-[0_4px_18px_rgba(0,0,0,.05)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Article readiness</p>
@@ -362,7 +362,7 @@ function ReadinessCard({ onReview }: { onReview: () => void }) {
           ))}
         </div>
       </div>
-      <div className="mt-5 flex items-center gap-2 rounded-xl bg-[#effaf5] px-3 py-2.5 text-[10px] font-semibold text-[#27795f]">
+      <div className="mt-5 flex items-center gap-2 rounded-md bg-[#effaf5] px-3 py-2.5 text-[10px] font-semibold text-[#27795f]">
         <CircleCheck className="size-4" /> ผ่านเกณฑ์ 85 คะแนน · รอ Approver
       </div>
     </article>
@@ -374,7 +374,7 @@ function PublishingCard({ onOpen, queueCount }: { onOpen: () => void; queueCount
     { label: "Telegram", icon: MessageCircle, time: `${queueCount}`, status: queueCount ? "Queued" : "Queue empty", color: "#2c98d8" },
   ];
   return (
-    <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.05)]">
+    <article className="rounded-lg border border-[#e4e8ed] bg-white p-5 shadow-[0_4px_18px_rgba(0,0,0,.05)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Publishing queue</p>
@@ -409,7 +409,7 @@ function WorkspacePanel({ section, onAction }: { section: Exclude<NavId, "dashbo
         return (
           <article key={item.title} className="group rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
             <div className="flex items-start justify-between">
-              <div className={`grid size-11 place-items-center rounded-2xl ${index === 0 ? "bg-[#fff0f1] text-[#dc3e48]" : index === 1 ? "bg-[#eef4ff] text-[#3e6cc2]" : "bg-[#edf9f4] text-[#238465]"}`}><Icon className="size-5" /></div>
+            <div className={`grid size-11 place-items-center rounded-full ${index === 0 ? "bg-[#fff0f1] text-[#dc3e48]" : index === 1 ? "bg-[#eef4ff] text-[#3e6cc2]" : "bg-[#edf9f4] text-[#238465]"}`}><Icon className="size-5" /></div>
               <span className="rounded-full bg-[#f4f1eb] px-2.5 py-1 text-[9px] font-bold text-[#777d88]">Demo</span>
             </div>
             <h2 className="mt-5 text-base font-extrabold text-[#1c2537]">{item.title}</h2>
@@ -450,6 +450,8 @@ export default function NewsroomDashboard() {
   const [discoveryError, setDiscoveryError] = useState("");
 
   const current = sectionCopy[active];
+  const currentNavItem = primaryNav.concat(workflowNav).find((item) => item.id === active);
+  const PageIcon = currentNavItem?.icon ?? Settings;
   const dashboardStats = useMemo<StatItem[]>(() => [
     { label: "Reports imported", value: String(summary.reports_total), change: `${summary.reports_today} today`, icon: Newspaper, tone: "blue" },
     { label: "Event clusters", value: String(summary.event_clusters), change: summary.event_clusters ? "Active" : "Not grouped", icon: Layers3, tone: "violet" },
@@ -523,40 +525,43 @@ export default function NewsroomDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f3f0ea] text-[#1c2537]">
+    <div className="architect-shell min-h-screen bg-[#f1f4f6] text-[#343a40]">
       <Sidebar active={active} mobileOpen={mobileOpen} onSelect={navigate} onClose={() => setMobileOpen(false)} />
 
-      <main className="min-h-screen lg:pl-[260px]">
-        <header className="sticky top-0 z-30 border-b border-[#e3dfd8]/80 bg-[#f3f0ea]/90 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-          <div className="mx-auto flex max-w-[1500px] items-center gap-3">
-            <button type="button" onClick={() => setMobileOpen(true)} aria-label="เปิดเมนู" className="grid size-10 place-items-center rounded-xl border border-[#ded9d1] bg-white text-[#495160] lg:hidden"><Menu className="size-5" /></button>
+      <main className="min-h-screen lg:pl-[280px]">
+        <header className="architect-header sticky top-0 z-30 border-b border-[#e6e9ed] bg-white px-4 py-2.5 shadow-[0_2px_12px_rgba(0,0,0,.035)] sm:px-6 lg:px-8">
+          <div className="mx-auto flex min-h-10 max-w-[1500px] items-center gap-3">
+            <button type="button" onClick={() => setMobileOpen(true)} aria-label="เปิดเมนู" className="grid size-10 place-items-center rounded-lg border border-[#e1e5ea] bg-white text-[#596170] lg:hidden"><Menu className="size-5" /></button>
             <div className="hidden min-w-0 sm:block">
               <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.12em] text-[#9a9da4]"><span>ARS GunNer</span><ChevronRight className="size-3" /><span className="text-[#555d6b]">{primaryNav.concat(workflowNav).find((item) => item.id === active)?.label ?? "Settings"}</span></div>
             </div>
-            <div className="relative ml-auto w-full max-w-[300px]">
+            <div className="relative ml-auto w-full max-w-[340px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9da1aa]" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="ค้นหาข่าว" placeholder="Search stories, sources..." className="h-10 w-full rounded-xl border border-[#dedad3] bg-white/85 pl-9 pr-3 text-xs text-[#263044] outline-none transition focus:border-[#d9666d] focus:ring-4 focus:ring-[#ef4b55]/10" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="ค้นหาข่าว" placeholder="Search stories, sources..." className="h-10 w-full rounded-full border border-[#e1e5ea] bg-[#f7f8fa] pl-9 pr-3 text-xs text-[#263044] outline-none transition focus:border-[#7e9ee7] focus:bg-white focus:ring-4 focus:ring-[#3f6ad8]/10" />
             </div>
-            <button type="button" onClick={() => { setUnread(false); setToast("อ่านการแจ้งเตือนแล้ว"); }} aria-label="การแจ้งเตือน" className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-[#dedad3] bg-white text-[#667080] hover:text-[#202a3d]">
-              <Bell className="size-[18px]" />{unread ? <span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#ef4b55]" /> : null}
+            <button type="button" onClick={() => { setUnread(false); setToast("อ่านการแจ้งเตือนแล้ว"); }} aria-label="การแจ้งเตือน" className="relative grid size-10 shrink-0 place-items-center rounded-full bg-[#f4f6f8] text-[#667080] hover:bg-[#e9efff] hover:text-[#3f6ad8]">
+              <Bell className="size-[18px]" />{unread ? <span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#d92550]" /> : null}
             </button>
-            <button type="button" onClick={() => navigate("settings")} aria-label="เปิดโปรไฟล์และการตั้งค่า" className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#1a2840] text-[10px] font-extrabold text-white shadow-sm">ED</button>
+            <button type="button" onClick={() => navigate("settings")} aria-label="เปิดโปรไฟล์และการตั้งค่า" className="grid size-10 shrink-0 place-items-center rounded-full bg-[#3f6ad8] text-[10px] font-extrabold text-white shadow-[0_4px_12px_rgba(63,106,216,.25)]">ED</button>
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1500px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-10">
-          <section className="relative overflow-hidden rounded-[26px] bg-[#16243a] px-5 py-6 text-white shadow-[0_18px_55px_rgba(24,35,55,.14)] sm:px-7 sm:py-7">
-            <div className="pointer-events-none absolute -right-16 -top-28 size-72 rounded-full border-[45px] border-white/[.025]" />
-            <div className="pointer-events-none absolute bottom-[-90px] right-[20%] size-44 rounded-full bg-[#ef4b55]/10 blur-2xl" />
-            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.22em] text-[#ff7b82]"><span className="size-1.5 rounded-full bg-[#ff646d] shadow-[0_0_0_4px_rgba(239,75,85,.12)]" />{current.eyebrow}</div>
-                <h1 className="text-2xl font-extrabold tracking-[-.03em] sm:text-[30px]">{current.title}</h1>
-                <p className="mt-2 max-w-2xl text-xs leading-6 text-slate-300 sm:text-[13px]">{current.description}</p>
+        <div className="mx-auto max-w-[1500px] px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-10">
+          <section className="architect-page-title -mx-4 -mt-5 mb-5 border-b border-[#e2e6eb] bg-[#f6f8fa] px-4 py-6 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+            <div className="mx-auto flex max-w-[1500px] flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="grid size-[60px] shrink-0 place-items-center rounded-lg bg-white text-[#3f6ad8] shadow-[0_4px_16px_rgba(0,0,0,.08)]">
+                  <PageIcon className="size-7" />
+                </div>
+                <div className="min-w-0">
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[.16em] text-[#3f6ad8]">{current.eyebrow}</div>
+                  <h1 className="text-xl font-semibold tracking-[-.02em] text-[#343a40] sm:text-2xl">{current.title}</h1>
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-[#7d8590] sm:text-[13px]">{current.description}</p>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => void syncFeeds()} disabled={syncing} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[.06] px-4 py-2.5 text-[11px] font-bold text-white hover:bg-white/10 disabled:cursor-wait disabled:opacity-70"><RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />{syncing ? "Syncing..." : "Sync RSS"}</button>
-                <button type="button" onClick={() => { navigate("articles"); setToast("เปิด Article Pattern workspace แล้ว"); }} className="inline-flex items-center gap-2 rounded-xl bg-[#ef4b55] px-4 py-2.5 text-[11px] font-bold text-white shadow-[0_9px_22px_rgba(239,75,85,.25)] hover:bg-[#df3d48]"><Plus className="size-4" />Create article</button>
+                <button type="button" onClick={() => void syncFeeds()} disabled={syncing} className="inline-flex items-center gap-2 rounded-full border border-[#dfe4ea] bg-white px-4 py-2.5 text-[11px] font-bold text-[#545d6b] shadow-sm hover:bg-[#f5f7fa] disabled:cursor-wait disabled:opacity-70"><RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />{syncing ? "Syncing..." : "Sync RSS"}</button>
+                <button type="button" onClick={() => { navigate("articles"); setToast("เปิด Article Pattern workspace แล้ว"); }} className="inline-flex items-center gap-2 rounded-full bg-[#3ac47d] px-5 py-2.5 text-[11px] font-bold text-white shadow-[0_6px_16px_rgba(58,196,125,.25)] hover:bg-[#31ad6e]"><Plus className="size-4" />Create article</button>
               </div>
             </div>
           </section>
@@ -567,20 +572,20 @@ export default function NewsroomDashboard() {
 
           {active === "dashboard" || active === "discovery" ? (
             <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,.75fr)]">
-              <section className="rounded-[22px] border border-[#e7e4de] bg-white p-4 shadow-[0_10px_30px_rgba(31,41,58,.05)] sm:p-5">
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <section className="rounded-lg border border-[#e4e8ed] bg-white shadow-[0_4px_18px_rgba(0,0,0,.05)]">
+                <div className="flex flex-col gap-3 border-b border-[#e8ebef] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                   <div>
-                    <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#ef4b55] shadow-[0_0_0_4px_rgba(239,75,85,.1)]" /><h2 className="text-base font-extrabold text-[#1b2436]">Live discovery feed</h2></div>
+                    <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#3f6ad8] shadow-[0_0_0_4px_rgba(63,106,216,.1)]" /><h2 className="text-base font-bold text-[#343a40]">Live discovery feed</h2></div>
                     <p className="mt-1 text-[10px] text-[#9a9fa8]">ข้อมูล RSS จริงจาก D1 · เปิดพาดหัวเพื่อดูแหล่งต้นฉบับ</p>
                   </div>
-                  <div className="flex items-center gap-1 rounded-xl bg-[#f3f0ea] p-1">
+                  <div className="flex items-center gap-1 rounded-full bg-[#f1f3f6] p-1">
                     {(["All", "th", "en"] as const).map((filter) => (
                       <button type="button" key={filter} onClick={() => setFeedFilter(filter)} className={`rounded-lg px-2.5 py-1.5 text-[9px] font-bold uppercase transition ${feedFilter === filter ? "bg-white text-[#202a3c] shadow-sm" : "text-[#8a909b] hover:text-[#4e5664]"}`}>{filter}</button>
                     ))}
                     <button type="button" onClick={refreshDiscovery} aria-label="รีเฟรช Discovery" className="grid size-7 place-items-center rounded-lg text-[#89909a] hover:bg-white"><RefreshCw className={`size-3.5 ${discoveryLoading ? "animate-spin" : ""}`} /></button>
                   </div>
                 </div>
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 p-4 sm:p-5">
                   {discoveryLoading ? (
                     <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><RefreshCw className="mx-auto size-6 animate-spin text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">กำลังโหลดข่าวจาก D1</p></div></div>
                   ) : discoveryError ? (
@@ -589,7 +594,7 @@ export default function NewsroomDashboard() {
                     <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">ไม่พบข่าวที่ตรงกับตัวกรอง</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
                   )}
                 </div>
-                <button type="button" onClick={() => navigate("discovery")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#535b69] hover:bg-[#f8f5ef]">Showing {visibleDiscoveryItems.length} of {summary.reports_total} reports <ArrowRight className="size-3.5" /></button>
+                <div className="border-t border-[#e8ebef] p-4 text-center"><button type="button" onClick={() => navigate("discovery")} className="inline-flex items-center justify-center gap-2 rounded-full bg-[#3f6ad8] px-5 py-2.5 text-[11px] font-bold text-white shadow-[0_5px_14px_rgba(63,106,216,.22)] hover:bg-[#345cc3]">Showing {visibleDiscoveryItems.length} of {summary.reports_total} reports <ArrowRight className="size-3.5" /></button></div>
               </section>
               <aside className="space-y-4">
                 <ReadinessCard onReview={() => navigate("articles")} />
@@ -603,16 +608,16 @@ export default function NewsroomDashboard() {
           )}
 
           <footer className="mt-6 flex flex-col gap-2 border-t border-[#ddd8d0] pt-4 text-[9px] font-medium text-[#979ba3] sm:flex-row sm:items-center sm:justify-between">
-            <p>ARS GunNer v0.5.2 · Live D1 discovery · Telegram delivery disabled by default</p>
+            <p>ARS GunNer v0.5.3 · ArchitectUI-inspired newsroom · Live D1 discovery</p>
             <p className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#56bc91]" /> Cloudflare-ready architecture</p>
           </footer>
         </div>
       </main>
 
-      <nav aria-label="Mobile navigation" className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 rounded-2xl border border-white/10 bg-[#111d30]/95 p-1.5 shadow-[0_16px_40px_rgba(10,18,31,.3)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="Mobile navigation" className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 rounded-xl border border-[#e1e5ea] bg-white/95 p-1.5 shadow-[0_14px_36px_rgba(24,35,55,.16)] backdrop-blur-xl lg:hidden">
         {[primaryNav[0], primaryNav[1], workflowNav[1], workflowNav[2]].map((item) => {
           const Icon = item.icon;
-          return <button type="button" key={item.id} onClick={() => navigate(item.id)} className={`flex flex-col items-center gap-1 rounded-xl py-2 text-[8px] font-bold ${active === item.id ? "bg-white/10 text-white" : "text-slate-500"}`}><Icon className={`size-4 ${active === item.id ? "text-[#ff646d]" : ""}`} />{item.label}</button>;
+          return <button type="button" key={item.id} onClick={() => navigate(item.id)} className={`flex flex-col items-center gap-1 rounded-lg py-2 text-[8px] font-bold ${active === item.id ? "bg-[#e9efff] text-[#3f6ad8]" : "text-[#88919d]"}`}><Icon className={`size-4 ${active === item.id ? "text-[#3f6ad8]" : ""}`} />{item.label}</button>;
         })}
       </nav>
 
