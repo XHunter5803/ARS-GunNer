@@ -1,0 +1,203 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3f0ea;
+  --foreground: #1c2537;
+  --navy: #101b2d;
+  --red: #ef4b55;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 84% 0%, rgba(255, 255, 255, 0.72), transparent 26rem),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), "Noto Sans Thai", "Leelawadee UI", Tahoma, Arial, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(239, 75, 85, 0.78);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(239, 75, 85, 0.2);
+  color: #141e30;
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(108, 115, 128, 0.35);
+  background-clip: padding-box;
+}
+
+.stat-change {
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stat-change--blue {
+  background: #eaf1ff;
+  color: #3d68bd;
+}
+
+.stat-change--violet {
+  background: #f0ecff;
+  color: #7254c5;
+}
+
+.stat-change--green {
+  background: #e8f8f1;
+  color: #277e62;
+}
+
+.stat-change--orange {
+  background: #fff0e6;
+  color: #a95a20;
+}
+
+.stat-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 13px;
+}
+
+.stat-icon--blue {
+  background: #edf3ff;
+  color: #4673c9;
+}
+
+.stat-icon--violet {
+  background: #f1edff;
+  color: #7358c7;
+}
+
+.stat-icon--green {
+  background: #eaf8f2;
+  color: #2b8a6b;
+}
+
+.stat-icon--orange {
+  background: #fff1e7;
+  color: #bc6728;
+}
+
+.readiness-ring {
+  position: relative;
+  display: grid;
+  width: 92px;
+  height: 92px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(#ef4b55 0 88%, #eeeae4 88% 100%);
+  box-shadow: 0 10px 25px rgba(239, 75, 85, 0.12);
+}
+
+.readiness-ring::before {
+  position: absolute;
+  width: 71px;
+  height: 71px;
+  border-radius: inherit;
+  background: #fff;
+  content: "";
+}
+
+.readiness-ring > div {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+}
+
+.readiness-ring strong {
+  color: #1b2436;
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+}
+
+.readiness-ring span {
+  margin-left: 2px;
+  color: #9a9ea7;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+@media (max-width: 520px) {
+  .readiness-ring {
+    width: 82px;
+    height: 82px;
+  }
+
+  .readiness-ring::before {
+    width: 63px;
+    height: 63px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
