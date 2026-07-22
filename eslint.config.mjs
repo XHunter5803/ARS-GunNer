@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "chatgpt-auth.ts",
+    "route.ts",
+    "route (2).ts",
+    "route (3).ts",
+    "social-publishing.ts",
   ]),
 ]);
 

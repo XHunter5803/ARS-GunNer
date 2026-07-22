@@ -1,6 +1,6 @@
 {
   "name": "ars-gunner-newsroom",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "packageManager": "npm@10.9.2",
   "engines": {

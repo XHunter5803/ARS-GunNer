@@ -34,7 +34,7 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
-test("renders the ARS GunNer newsroom shell with demo disclosure", async () => {
+test("renders the ARS GunNer newsroom shell with live discovery disclosure", async () => {
   const worker = await workerPromise;
   const response = await worker.fetch(
     new Request("http://localhost/", { headers: { accept: "text/html" } }),
@@ -46,7 +46,7 @@ test("renders the ARS GunNer newsroom shell with demo disclosure", async () => {
   assert.equal(response.status, 200);
   assert.match(html, /Newsroom intelligence/i);
   assert.match(html, /Live discovery feed/i);
-  assert.match(html, /Demo data/i);
+  assert.match(html, /ข้อมูล RSS จริงจาก D1/i);
   assert.match(html, /Article readiness/i);
 });
 

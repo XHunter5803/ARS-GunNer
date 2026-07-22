@@ -3,7 +3,6 @@
 import {
   ArrowRight,
   ArrowUpRight,
-  AtSign,
   Bell,
   CalendarDays,
   Check,
@@ -31,18 +30,15 @@ import {
   Search,
   Send,
   Settings,
-  Share2,
   ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
   Star,
-  TrendingUp,
   UserCheck,
   WandSparkles,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import EditorialWorkspace from "./editorial-workspaces";
 
 type NavId =
@@ -64,29 +60,41 @@ type NavItem = {
   badge?: string;
 };
 
-type FeedCluster = {
+type DiscoveryItem = {
   id: number;
-  category: "Transfer" | "Club" | "League";
   headline: string;
-  summary: string;
-  sources: number;
-  reporters: number;
-  viral: number;
-  updated: string;
-  confidence: "High" | "Review";
+  canonical_url: string;
+  reporter: string | null;
+  language: "th" | "en" | "other";
+  published_at: string | null;
+  clean_text: string;
+  created_at: string;
+  source_name: string | null;
+  source_type: string | null;
+  reliability_weight: number | null;
 };
+
+type DashboardSummary = {
+  reports_total: number;
+  reports_today: number;
+  event_clusters: number;
+  ready_articles: number;
+  publishing_queue: number;
+};
+
+type StatItem = { label: string; value: string; change: string; icon: LucideIcon; tone: string };
 
 const primaryNav: NavItem[] = [
   { id: "dashboard", label: "Dashboard", labelTh: "ภาพรวม", icon: LayoutDashboard },
-  { id: "discovery", label: "Discovery", labelTh: "ค้นหาข่าว", icon: Radar, badge: "36" },
+  { id: "discovery", label: "Discovery", labelTh: "ค้นหาข่าว", icon: Radar },
   { id: "favorites", label: "Favorites", labelTh: "รายการติดตาม", icon: Star },
   { id: "sources", label: "Sources", labelTh: "แหล่งข่าว", icon: RadioTower },
 ];
 
 const workflowNav: NavItem[] = [
-  { id: "fact-check", label: "Fact Check", labelTh: "ตรวจข้อเท็จจริง", icon: ShieldCheck, badge: "5" },
-  { id: "articles", label: "Articles", labelTh: "บทความ", icon: FileText, badge: "8" },
-  { id: "publishing", label: "Publishing", labelTh: "เผยแพร่", icon: Send, badge: "3" },
+  { id: "fact-check", label: "Fact Check", labelTh: "ตรวจข้อเท็จจริง", icon: ShieldCheck },
+  { id: "articles", label: "Articles", labelTh: "บทความ", icon: FileText },
+  { id: "publishing", label: "Publishing", labelTh: "เผยแพร่", icon: Send },
   { id: "schedule", label: "Schedule", labelTh: "ตารางเวลา", icon: CalendarDays },
 ];
 
@@ -123,8 +131,8 @@ const sectionCopy: Record<NavId, { eyebrow: string; title: string; description: 
   },
   publishing: {
     eyebrow: "Delivery queue",
-    title: "ตรวจ Preview ก่อนส่งทุกช่องทาง",
-    description: "ควบคุม Facebook, X และ Telegram พร้อมบันทึกผลการส่งอย่างชัดเจน",
+    title: "ตรวจ Preview ก่อนส่ง Telegram",
+    description: "ควบคุมคิว Telegram พร้อมบันทึกผลการส่งและ Retry อย่างชัดเจน",
   },
   schedule: {
     eyebrow: "Editorial calendar",
@@ -138,48 +146,13 @@ const sectionCopy: Record<NavId, { eyebrow: string; title: string; description: 
   },
 };
 
-const clusters: FeedCluster[] = [
-  {
-    id: 1,
-    category: "Transfer",
-    headline: "Demo: Northbridge FC สำรวจทางเลือกกองหน้ารายใหม่ หลังแผนเดิมยังไม่ชัดเจน",
-    summary: "หลายรายงานพูดถึงเหตุการณ์เดียวกัน แต่ระดับข้อมูลยังอยู่ที่ “สนใจ” และต้องตรวจต้นทางเพิ่ม",
-    sources: 7,
-    reporters: 3,
-    viral: 92,
-    updated: "6 นาทีที่แล้ว",
-    confidence: "High",
-  },
-  {
-    id: 2,
-    category: "Club",
-    headline: "Demo: Harbor United ปรับโครงทีมงาน จึงอาจเปลี่ยนลำดับความสำคัญในตลาด",
-    summary: "ข้อมูลทางการยืนยันการเปลี่ยนบทบาทหนึ่งตำแหน่ง ส่วนผลต่อแผนซื้อขายยังเป็นการวิเคราะห์",
-    sources: 5,
-    reporters: 2,
-    viral: 78,
-    updated: "18 นาทีที่แล้ว",
-    confidence: "High",
-  },
-  {
-    id: 3,
-    category: "League",
-    headline: "Demo: กฎลงทะเบียนฉบับใหม่อาจทำให้หลายสโมสรต้องทบทวนขนาดทีม",
-    summary: "เอกสารร่างและรายงานจากสื่อให้รายละเอียดบางจุดไม่ตรงกัน จึงยังไม่ควรฟันธงผลกระทบ",
-    sources: 4,
-    reporters: 1,
-    viral: 64,
-    updated: "31 นาทีที่แล้ว",
-    confidence: "Review",
-  },
-];
-
-const stats: { label: string; value: string; change: string; icon: LucideIcon; tone: string }[] = [
-  { label: "Reports today", value: "128", change: "+18%", icon: Newspaper, tone: "blue" },
-  { label: "Event clusters", value: "36", change: "11 new", icon: Layers3, tone: "violet" },
-  { label: "Ready articles", value: "8", change: "Score ≥ 85", icon: CircleCheck, tone: "green" },
-  { label: "Publishing queue", value: "3", change: "Next 14:30", icon: Clock3, tone: "orange" },
-];
+const emptySummary: DashboardSummary = {
+  reports_total: 0,
+  reports_today: 0,
+  event_clusters: 0,
+  ready_articles: 0,
+  publishing_queue: 0,
+};
 
 const workspaceCards: Record<Exclude<NavId, "dashboard" | "discovery">, { icon: LucideIcon; title: string; text: string; meta: string }[]> = {
   favorites: [
@@ -203,9 +176,7 @@ const workspaceCards: Record<Exclude<NavId, "dashboard" | "discovery">, { icon: 
     { icon: PencilLine, title: "Revisions", text: "บันทึก JSON ทุกฉบับเพื่อเปรียบเทียบและย้อนดูเหตุผลการแก้ไข", meta: "Version history on" },
   ],
   publishing: [
-    { icon: Share2, title: "Facebook", text: "ตรวจข้อความ ภาพตัวอย่าง และเวลาส่งก่อนเข้าสู่คิว", meta: "1 queued" },
-    { icon: AtSign, title: "X", text: "ย่อข้อความโดยไม่เปลี่ยนระดับข่าวและคงลิงก์แหล่งอ้างอิง", meta: "1 needs review" },
-    { icon: MessageCircle, title: "Telegram", text: "ส่งบทความพร้อมบันทึก Delivery ID และผล Retry", meta: "1 scheduled" },
+    { icon: MessageCircle, title: "Telegram", text: "ตรวจข้อความ เวลา และ Chat ปลายทางก่อนส่ง พร้อมบันทึก Delivery ID และผล Retry", meta: "Only active channel" },
   ],
   schedule: [
     { icon: CalendarDays, title: "Today", text: "14:30 · มุมมองตลาดซื้อขาย — Demo article", meta: "Approved" },
@@ -303,7 +274,7 @@ function Sidebar({ active, mobileOpen, onSelect, onClose }: { active: NavId; mob
   );
 }
 
-function StatCard({ item }: { item: (typeof stats)[number] }) {
+function StatCard({ item }: { item: StatItem }) {
   const Icon = item.icon;
   return (
     <article className="rounded-[20px] border border-[#e7e4de] bg-white p-4 shadow-[0_8px_26px_rgba(36,45,64,.04)] transition-transform hover:-translate-y-0.5">
@@ -321,35 +292,44 @@ function StatCard({ item }: { item: (typeof stats)[number] }) {
   );
 }
 
-function FeedCard({ cluster, onOpen }: { cluster: FeedCluster; onOpen: () => void }) {
+function formatPublishedAt(value: string | null, fallback: string) {
+  const date = new Date(value ?? fallback);
+  if (!Number.isFinite(date.getTime())) return "ไม่ทราบเวลา";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+}
+
+function DiscoveryCard({ item }: { item: DiscoveryItem }) {
+  const languageLabel = item.language === "th" ? "TH" : item.language === "en" ? "EN" : "OTHER";
+  const sourceLabel = item.source_name || "Unknown source";
+  const summary = item.clean_text.trim() || "RSS feed นี้มีเฉพาะพาดหัว เปิดลิงก์ต้นฉบับเพื่ออ่านรายละเอียด";
   return (
     <article className="group rounded-2xl border border-[#ebe8e2] bg-[#fffefa] p-4 transition-all hover:border-[#dfd9cf] hover:shadow-[0_12px_30px_rgba(30,42,63,.06)]">
       <div className="flex items-start gap-3">
-        <div className={`mt-1 grid size-9 shrink-0 place-items-center rounded-xl ${cluster.category === "Transfer" ? "bg-[#fff0f1] text-[#e23d47]" : cluster.category === "Club" ? "bg-[#eef4ff] text-[#3f6fc7]" : "bg-[#f0ecff] text-[#7254c5]"}`}>
-          {cluster.category === "Transfer" ? <TrendingUp className="size-[17px]" /> : cluster.category === "Club" ? <ShieldCheck className="size-[17px]" /> : <Globe2 className="size-[17px]" />}
+        <div className="mt-1 grid size-9 shrink-0 place-items-center rounded-xl bg-[#eef4ff] text-[#3f6fc7]">
+          <Rss className="size-[17px]" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-[#f0eee8] px-2 py-1 text-[9px] font-bold uppercase tracking-[.12em] text-[#6e7480]">{cluster.category}</span>
-            <span className="rounded-md bg-[#fff4d8] px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] text-[#9a6d0e]">Demo data</span>
-            <span className="text-[10px] text-[#a1a5ad]">{cluster.updated}</span>
+            <span className="rounded-md bg-[#f0eee8] px-2 py-1 text-[9px] font-bold uppercase tracking-[.12em] text-[#6e7480]">{sourceLabel}</span>
+            <span className="rounded-md bg-[#eaf9f2] px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] text-[#228464]">Live RSS</span>
+            <span className="rounded-md bg-[#f0ecff] px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] text-[#7254c5]">{languageLabel}</span>
+            <span className="text-[10px] text-[#a1a5ad]">{formatPublishedAt(item.published_at, item.created_at)}</span>
           </div>
-          <button type="button" onClick={onOpen} className="text-left text-[14px] font-bold leading-6 text-[#20283a] transition-colors hover:text-[#d7333e]">
-            {cluster.headline}
-          </button>
-          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#777d88]">{cluster.summary}</p>
+          <a href={item.canonical_url} target="_blank" rel="noreferrer" className="text-left text-[14px] font-bold leading-6 text-[#20283a] transition-colors hover:text-[#d7333e]">{item.headline}</a>
+          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#777d88]">{summary}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-medium text-[#868c97]">
-            <span className="flex items-center gap-1.5"><Globe2 className="size-3.5" /> {cluster.sources} sources</span>
-            <span className="flex items-center gap-1.5"><UserCheck className="size-3.5" /> {cluster.reporters} reporters</span>
-            <span className="flex items-center gap-1.5"><TrendingUp className="size-3.5 text-[#ef4b55]" /> Viral {cluster.viral}</span>
-            <span className={`ml-auto flex items-center gap-1 rounded-full px-2 py-1 font-bold ${cluster.confidence === "High" ? "bg-[#eaf9f2] text-[#228464]" : "bg-[#fff1e7] text-[#aa5e22]"}`}>
-              {cluster.confidence === "High" ? <Check className="size-3" /> : <Clock3 className="size-3" />}{cluster.confidence}
-            </span>
+            <span className="flex items-center gap-1.5"><Globe2 className="size-3.5" /> {sourceLabel}</span>
+            <span className="flex items-center gap-1.5"><UserCheck className="size-3.5" /> {item.reporter || "ไม่ระบุ Reporter"}</span>
+            <span className="ml-auto flex items-center gap-1 rounded-full bg-[#eaf9f2] px-2 py-1 font-bold text-[#228464]"><Check className="size-3" /> Imported</span>
           </div>
         </div>
-        <button type="button" onClick={onOpen} aria-label={`เปิด ${cluster.headline}`} className="grid size-8 shrink-0 place-items-center rounded-lg text-[#a5a9b1] transition-colors hover:bg-[#f1eee8] hover:text-[#252d3d]">
+        <a href={item.canonical_url} target="_blank" rel="noreferrer" aria-label={`เปิดต้นฉบับ ${item.headline}`} className="grid size-8 shrink-0 place-items-center rounded-lg text-[#a5a9b1] transition-colors hover:bg-[#f1eee8] hover:text-[#252d3d]">
           <ChevronRight className="size-4" />
-        </button>
+        </a>
       </div>
     </article>
   );
@@ -389,11 +369,9 @@ function ReadinessCard({ onReview }: { onReview: () => void }) {
   );
 }
 
-function PublishingCard({ onOpen }: { onOpen: () => void }) {
+function PublishingCard({ onOpen, queueCount }: { onOpen: () => void; queueCount: number }) {
   const channels = [
-    { label: "Facebook", icon: Share2, time: "14:30", status: "Queued", color: "#376fd0" },
-    { label: "X", icon: AtSign, time: "15:00", status: "Review", color: "#172033" },
-    { label: "Telegram", icon: MessageCircle, time: "16:15", status: "Scheduled", color: "#2c98d8" },
+    { label: "Telegram", icon: MessageCircle, time: `${queueCount}`, status: queueCount ? "Queued" : "Queue empty", color: "#2c98d8" },
   ];
   return (
     <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.05)]">
@@ -402,7 +380,7 @@ function PublishingCard({ onOpen }: { onOpen: () => void }) {
           <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Publishing queue</p>
           <h2 className="mt-1 text-base font-extrabold text-[#1b2436]">ส่งวันนี้</h2>
         </div>
-        <span className="rounded-full bg-[#fff0f1] px-2.5 py-1 text-[9px] font-bold text-[#d83943]">3 items</span>
+        <span className="rounded-full bg-[#fff0f1] px-2.5 py-1 text-[9px] font-bold text-[#d83943]">{queueCount} items</span>
       </div>
       <div className="mt-4 space-y-2">
         {channels.map((item) => {
@@ -462,20 +440,57 @@ export default function NewsroomDashboard() {
   const [active, setActive] = useState<NavId>("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [feedFilter, setFeedFilter] = useState<"All" | FeedCluster["category"]>("All");
+  const [feedFilter, setFeedFilter] = useState<"All" | "th" | "en">("All");
   const [unread, setUnread] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState("");
+  const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
+  const [discoveryItems, setDiscoveryItems] = useState<DiscoveryItem[]>([]);
+  const [discoveryLoading, setDiscoveryLoading] = useState(true);
+  const [discoveryError, setDiscoveryError] = useState("");
 
   const current = sectionCopy[active];
-  const visibleClusters = useMemo(() => {
+  const dashboardStats = useMemo<StatItem[]>(() => [
+    { label: "Reports imported", value: String(summary.reports_total), change: `${summary.reports_today} today`, icon: Newspaper, tone: "blue" },
+    { label: "Event clusters", value: String(summary.event_clusters), change: summary.event_clusters ? "Active" : "Not grouped", icon: Layers3, tone: "violet" },
+    { label: "Ready articles", value: String(summary.ready_articles), change: "Score ≥ 85", icon: CircleCheck, tone: "green" },
+    { label: "Publishing queue", value: String(summary.publishing_queue), change: "Telegram", icon: Clock3, tone: "orange" },
+  ], [summary]);
+
+  const visibleDiscoveryItems = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return clusters.filter((item) => {
-      const matchesFilter = feedFilter === "All" || item.category === feedFilter;
-      const matchesQuery = !normalized || `${item.headline} ${item.summary}`.toLowerCase().includes(normalized);
+    return discoveryItems.filter((item) => {
+      const matchesFilter = feedFilter === "All" || item.language === feedFilter;
+      const matchesQuery = !normalized || `${item.headline} ${item.clean_text} ${item.source_name ?? ""} ${item.reporter ?? ""}`.toLowerCase().includes(normalized);
       return matchesFilter && matchesQuery;
     });
-  }, [feedFilter, query]);
+  }, [discoveryItems, feedFilter, query]);
+
+  const loadDiscovery = useCallback(async () => {
+    try {
+      const response = await fetch("/api/v1/discovery?limit=25", { headers: { accept: "application/json" } });
+      const payload = await response.json() as { data?: { summary?: DashboardSummary; items?: DiscoveryItem[] }; error?: { message?: string } };
+      if (!response.ok) throw new Error(payload.error?.message || "โหลดข่าวไม่สำเร็จ");
+      setSummary(payload.data?.summary ?? emptySummary);
+      setDiscoveryItems(payload.data?.items ?? []);
+      setDiscoveryError("");
+    } catch (error) {
+      setDiscoveryError(error instanceof Error ? error.message : "โหลดข่าวไม่สำเร็จ");
+    } finally {
+      setDiscoveryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadDiscovery(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadDiscovery]);
+
+  const refreshDiscovery = () => {
+    setDiscoveryLoading(true);
+    setDiscoveryError("");
+    void loadDiscovery();
+  };
 
   useEffect(() => {
     if (!toast) return;
@@ -495,9 +510,10 @@ export default function NewsroomDashboard() {
       const response = await fetch("/api/v1/rss/ingest", { method: "POST", headers: { accept: "application/json" } });
       const payload = await response.json() as { data?: { sources_checked?: number; items_inserted?: number }; error?: { message?: string } };
       if (!response.ok) {
-        setToast(payload.error?.message || "ซิงก์ RSS ไม่สำเร็จ");
+        setToast(response.status === 401 ? "Manual Sync ต้องใช้ Access · Cron ยังดึงข่าวทุก 15 นาที" : payload.error?.message || "ซิงก์ RSS ไม่สำเร็จ");
         return;
       }
+      await loadDiscovery();
       setToast(`ซิงก์ RSS แล้ว · ${payload.data?.sources_checked ?? 0} แหล่ง · เพิ่ม ${payload.data?.items_inserted ?? 0} ข่าว`);
     } catch {
       setToast("เชื่อมต่อ RSS API ไม่สำเร็จ");
@@ -546,7 +562,7 @@ export default function NewsroomDashboard() {
           </section>
 
           <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {stats.map((item) => <StatCard key={item.label} item={item} />)}
+            {dashboardStats.map((item) => <StatCard key={item.label} item={item} />)}
           </div>
 
           {active === "dashboard" || active === "discovery" ? (
@@ -555,25 +571,29 @@ export default function NewsroomDashboard() {
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#ef4b55] shadow-[0_0_0_4px_rgba(239,75,85,.1)]" /><h2 className="text-base font-extrabold text-[#1b2436]">Live discovery feed</h2></div>
-                    <p className="mt-1 text-[10px] text-[#9a9fa8]">รวมข่าวซ้ำเป็น Event Cluster · แสดงข้อมูลตัวอย่างเท่านั้น</p>
+                    <p className="mt-1 text-[10px] text-[#9a9fa8]">ข้อมูล RSS จริงจาก D1 · เปิดพาดหัวเพื่อดูแหล่งต้นฉบับ</p>
                   </div>
                   <div className="flex items-center gap-1 rounded-xl bg-[#f3f0ea] p-1">
-                    {(["All", "Transfer", "Club", "League"] as const).map((filter) => (
-                      <button type="button" key={filter} onClick={() => setFeedFilter(filter)} className={`rounded-lg px-2.5 py-1.5 text-[9px] font-bold transition ${feedFilter === filter ? "bg-white text-[#202a3c] shadow-sm" : "text-[#8a909b] hover:text-[#4e5664]"}`}>{filter}</button>
+                    {(["All", "th", "en"] as const).map((filter) => (
+                      <button type="button" key={filter} onClick={() => setFeedFilter(filter)} className={`rounded-lg px-2.5 py-1.5 text-[9px] font-bold uppercase transition ${feedFilter === filter ? "bg-white text-[#202a3c] shadow-sm" : "text-[#8a909b] hover:text-[#4e5664]"}`}>{filter}</button>
                     ))}
-                    <button type="button" onClick={() => setToast("ตัวกรองขั้นสูงจะเชื่อมกับ Favorites ใน Phase ถัดไป")} aria-label="ตัวกรองขั้นสูง" className="grid size-7 place-items-center rounded-lg text-[#89909a] hover:bg-white"><SlidersHorizontal className="size-3.5" /></button>
+                    <button type="button" onClick={refreshDiscovery} aria-label="รีเฟรช Discovery" className="grid size-7 place-items-center rounded-lg text-[#89909a] hover:bg-white"><RefreshCw className={`size-3.5 ${discoveryLoading ? "animate-spin" : ""}`} /></button>
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  {visibleClusters.length ? visibleClusters.map((cluster) => <FeedCard key={cluster.id} cluster={cluster} onOpen={() => { navigate("fact-check"); setToast(`เปิด Cluster #${cluster.id} สำหรับตรวจสอบแล้ว`); }} />) : (
-                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">ไม่พบข่าวตัวอย่าง</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
+                  {discoveryLoading ? (
+                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><RefreshCw className="mx-auto size-6 animate-spin text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">กำลังโหลดข่าวจาก D1</p></div></div>
+                  ) : discoveryError ? (
+                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#efc9cc] bg-[#fff7f7] text-center"><div><ShieldCheck className="mx-auto size-6 text-[#d04a54]" /><p className="mt-3 text-xs font-bold text-[#535b68]">{discoveryError}</p><button type="button" onClick={refreshDiscovery} className="mt-2 text-[10px] font-bold text-[#df3d48]">ลองใหม่</button></div></div>
+                  ) : visibleDiscoveryItems.length ? visibleDiscoveryItems.map((item) => <DiscoveryCard key={item.id} item={item} />) : (
+                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">ไม่พบข่าวที่ตรงกับตัวกรอง</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
                   )}
                 </div>
-                <button type="button" onClick={() => navigate("discovery")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#535b69] hover:bg-[#f8f5ef]">View all 36 clusters <ArrowRight className="size-3.5" /></button>
+                <button type="button" onClick={() => navigate("discovery")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#535b69] hover:bg-[#f8f5ef]">Showing {visibleDiscoveryItems.length} of {summary.reports_total} reports <ArrowRight className="size-3.5" /></button>
               </section>
               <aside className="space-y-4">
                 <ReadinessCard onReview={() => navigate("articles")} />
-                <PublishingCard onOpen={() => navigate("publishing")} />
+                <PublishingCard onOpen={() => navigate("publishing")} queueCount={summary.publishing_queue} />
               </aside>
             </div>
           ) : active === "favorites" || active === "sources" || active === "fact-check" || active === "articles" || active === "publishing" ? (
@@ -583,7 +603,7 @@ export default function NewsroomDashboard() {
           )}
 
           <footer className="mt-6 flex flex-col gap-2 border-t border-[#ddd8d0] pt-4 text-[9px] font-medium text-[#979ba3] sm:flex-row sm:items-center sm:justify-between">
-            <p>ARS GunNer v0.5.1 · Cloudflare-ready · Telegram delivery disabled by default</p>
+            <p>ARS GunNer v0.5.2 · Live D1 discovery · Telegram delivery disabled by default</p>
             <p className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#56bc91]" /> Cloudflare-ready architecture</p>
           </footer>
         </div>
