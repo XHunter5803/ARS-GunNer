@@ -1,136 +1,48 @@
-CREATE TABLE `article_revisions` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`article_id` integer NOT NULL,
-	`revision_no` integer NOT NULL,
-	`payload_json` text NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`article_id`) REFERENCES `articles`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `article_revision_uidx` ON `article_revisions` (`article_id`,`revision_no`);--> statement-breakpoint
-CREATE TABLE `articles` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`cluster_id` integer,
-	`language` text NOT NULL,
-	`pattern` text DEFAULT 'perspective' NOT NULL,
-	`category` text NOT NULL,
-	`label` text DEFAULT 'มุมมอง' NOT NULL,
-	`headline` text NOT NULL,
-	`status` text DEFAULT 'draft' NOT NULL,
-	`readiness_score` integer DEFAULT 0 NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`cluster_id`) REFERENCES `event_clusters`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
-CREATE INDEX `articles_status_idx` ON `articles` (`status`);--> statement-breakpoint
-CREATE TABLE `audit_events` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`actor` text NOT NULL,
-	`action` text NOT NULL,
-	`entity_type` text NOT NULL,
-	`entity_id` text NOT NULL,
-	`detail_json` text DEFAULT '{}' NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX `audit_events_entity_idx` ON `audit_events` (`entity_type`,`entity_id`);--> statement-breakpoint
-CREATE TABLE `cluster_items` (
-	`cluster_id` integer NOT NULL,
-	`feed_item_id` integer NOT NULL,
-	PRIMARY KEY(`cluster_id`, `feed_item_id`),
-	FOREIGN KEY (`cluster_id`) REFERENCES `event_clusters`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`feed_item_id`) REFERENCES `feed_items`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `delivery_attempts` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`job_id` integer NOT NULL,
-	`attempt_no` integer NOT NULL,
-	`status` text NOT NULL,
-	`response_code` integer,
-	`response_message` text,
-	`attempted_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`job_id`) REFERENCES `publication_jobs`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `delivery_attempts_job_idx` ON `delivery_attempts` (`job_id`);--> statement-breakpoint
-CREATE TABLE `event_clusters` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`cluster_key` text NOT NULL,
-	`title` text NOT NULL,
-	`category` text NOT NULL,
-	`viral_score` integer DEFAULT 0 NOT NULL,
-	`status` text DEFAULT 'new' NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `event_clusters_key_uidx` ON `event_clusters` (`cluster_key`);--> statement-breakpoint
-CREATE INDEX `event_clusters_status_idx` ON `event_clusters` (`status`);--> statement-breakpoint
-CREATE TABLE `fact_checks` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`cluster_id` integer NOT NULL,
-	`confirmed_facts_json` text DEFAULT '[]' NOT NULL,
-	`reported_claims_json` text DEFAULT '[]' NOT NULL,
-	`conflicts_json` text DEFAULT '[]' NOT NULL,
-	`confidence_score` integer DEFAULT 0 NOT NULL,
-	`status` text DEFAULT 'pending' NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`cluster_id`) REFERENCES `event_clusters`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `fact_checks_cluster_idx` ON `fact_checks` (`cluster_id`);--> statement-breakpoint
-CREATE TABLE `favorite_filters` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`kind` text NOT NULL,
-	`value` text NOT NULL,
-	`label` text NOT NULL,
-	`is_active` integer DEFAULT true NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `favorite_kind_value_uidx` ON `favorite_filters` (`kind`,`value`);--> statement-breakpoint
-CREATE TABLE `feed_items` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`source_id` integer,
-	`canonical_url` text NOT NULL,
-	`headline` text NOT NULL,
-	`reporter` text,
-	`language` text NOT NULL,
-	`published_at` text,
-	`raw_text` text DEFAULT '' NOT NULL,
-	`clean_text` text DEFAULT '' NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`source_id`) REFERENCES `sources`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `feed_items_canonical_url_uidx` ON `feed_items` (`canonical_url`);--> statement-breakpoint
-CREATE INDEX `feed_items_published_at_idx` ON `feed_items` (`published_at`);--> statement-breakpoint
-CREATE TABLE `publication_jobs` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`article_id` integer NOT NULL,
-	`channel` text NOT NULL,
-	`scheduled_at` text,
-	`status` text DEFAULT 'queued' NOT NULL,
-	`preview_text` text DEFAULT '' NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	FOREIGN KEY (`article_id`) REFERENCES `articles`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `publication_jobs_status_idx` ON `publication_jobs` (`status`,`scheduled_at`);--> statement-breakpoint
-CREATE TABLE `sources` (
-	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
-	`name` text NOT NULL,
-	`homepage_url` text NOT NULL,
-	`feed_url` text NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
-	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `sources_feed_url_uidx` ON `sources` (`feed_url`);
+{
+  "name": "ars-gunner-newsroom",
+  "version": "0.5.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "install:ci": "bash scripts/install-ci.sh",
+    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
+    "build": "bash scripts/build-verified.sh",
+    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "validate:artifact": "bash scripts/validate-artifact.sh",
+    "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
+    "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate",
+    "db:migrate:remote": "wrangler d1 migrations apply ars-gunner-newsroom --remote",
+    "deploy:cloudflare": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "fast-xml-parser": "^5.10.1",
+    "lucide-react": "^1.25.0",
+    "next": "16.2.6",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.37.1",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "drizzle-kit": "0.31.10",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.6",
+    "react-server-dom-webpack": "19.2.6",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "vinext": "0.0.50",
+    "vite": "8.0.13",
+    "wrangler": "4.92.0"
+  },
+  "type": "module",
+  "displayName": "ARS GunNer Newsroom"
+}

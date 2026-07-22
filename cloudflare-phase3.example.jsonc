@@ -1,27 +1,16 @@
 {
-  "version": "7",
-  "dialect": "sqlite",
-  "entries": [
+  // Reference only. Sites owns the real production D1 wiring.
+  "ai": {
+    "binding": "AI"
+  },
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+  "d1_databases": [
     {
-      "idx": 0,
-      "version": "6",
-      "when": 1784686182702,
-      "tag": "0000_green_brother_voodoo",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1784687079914,
-      "tag": "0001_flippant_snowbird",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1784689376366,
-      "tag": "0002_heavy_punisher",
-      "breakpoints": true
+      "binding": "DB",
+      "database_name": "ars-gunner-newsroom",
+      "database_id": "REPLACE_WITH_REAL_D1_DATABASE_ID"
     }
   ]
 }
