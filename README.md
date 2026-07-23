@@ -2,7 +2,7 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.8.0 capabilities
+## Version 0.8.1 capabilities
 
 - Transfer-market-inspired responsive News Inbox using the original ARS GunNer brand: a real-news ticker in a two-column card grid, URL cover images, source-status labels, a top navigation bar, and a right rail for verified reports and daily Reporter/outlet suggestions
 - Favorites and source management backed by Cloudflare D1
@@ -16,6 +16,7 @@ Editorial intelligence dashboard for discovering football news, comparing source
 - Server-side evidence enforcement: `confirmed` requires an official source or two independent origins; unsupported confirmations are downgraded to `reported`, and conflicts require two cited sources
 - Visible validation chain in Article Editor showing Discovery, Fact Check, Article Pattern, Language Cleaner, QA Gate, and final Human Editor approval
 - Automatic one-time regeneration when the writer omits a required headline, 5–7 paragraph body, or closing question
+- JSON Schema enforcement for the Article Draft, automatic retry after malformed JSON, balanced-object extraction when a model adds prose, and a Research-model fallback when the primary writer still returns an invalid Draft shape
 - Compact 2026/27 Premier League team filters under the League tab, with horizontal scrolling on small screens
 - RSS/Atom parsing, canonical-link deduplication, event clustering, and Cron ingestion
 - Source ranking, confirmed-fact/report-claim separation, contradiction reporting, and readiness scoring
@@ -125,7 +126,7 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.8.0 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.8.1 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 

@@ -1,13 +1,17 @@
-# ARS GunNer v0.8.0 — Market News Dashboard
+# ARS GunNer v0.8.1 — Draft JSON Recovery
 
 1. Close the running development server.
 2. Extract this ZIP.
 3. Copy every extracted file and folder into the root of your existing `ARS-GunNer` repository.
 4. Allow Windows to replace files with the same names. Keep the nested folder structure.
-5. In GitHub Desktop, confirm the changed files, use summary `Redesign real news dashboard`, then commit and push to `main`.
+5. In GitHub Desktop, confirm the changed files, use summary `Fix Workers AI Draft JSON recovery`, then commit and push to `main`.
 6. Cloudflare Workers Builds should deploy automatically.
 
 No new D1 migration is required for this update.
+
+## Draft recovery update
+
+The Article Pattern writer now requests a strict JSON Schema from Workers AI. If the first response is malformed or incomplete, it automatically regenerates the complete Draft. The parser can extract a balanced JSON object when a model adds short text around it. If the configured writer still fails after its retry, the successful Research model is used once as a fallback. A Draft is accepted only when it still contains a headline, 5–7 non-empty paragraphs, and a closing question.
 
 ## Dashboard update
 

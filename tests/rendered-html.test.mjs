@@ -58,6 +58,7 @@ test("ships the semantic Draft workflow and daily discovery controls", async () 
   const dashboard = await readFile(new URL("../app/newsroom-dashboard.tsx", import.meta.url), "utf8");
   const research = await readFile(new URL("../lib/semantic-research.ts", import.meta.url), "utf8");
   const generation = await readFile(new URL("../lib/article-generation.ts", import.meta.url), "utf8");
+  const researchDraft = await readFile(new URL("../app/api/v1/research/draft/route.ts", import.meta.url), "utf8");
   assert.match(source, /Article Editor/i);
   assert.doesNotMatch(source, /Research & Build Draft/i);
   assert.match(source, /Daily discovery/i);
@@ -75,6 +76,10 @@ test("ships the semantic Draft workflow and daily discovery controls", async () 
   assert.match(research, /verifiedEvidenceLevel/);
   assert.match(research, /conflict_points/);
   assert.match(generation, /AI_DRAFT_INCOMPLETE/);
+  assert.match(generation, /articleDraftSchema/);
+  assert.match(generation, /response_format/);
+  assert.match(generation, /AI_JSON_INVALID/);
+  assert.match(researchDraft, /requested_writer/);
   assert.match(dashboard, /premierLeagueTeams/);
   assert.match(dashboard, /ARS/);
   assert.match(dashboard, /TOT/);
@@ -93,7 +98,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.8.0");
+  assert.equal(payload.data.version, "0.8.1");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });

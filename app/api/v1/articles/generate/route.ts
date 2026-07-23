@@ -6,7 +6,13 @@ import type { GeneratePerspectiveInput } from "../../../../../lib/article-genera
 type RuntimeBindings = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   WORKERS_AI_MODEL?: string;
+  WORKERS_AI_RESEARCH_MODEL?: string;
 };
+
+function isDraftShapeError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  return message.includes("AI_JSON") || message.startsWith("AI_DRAFT_INCOMPLETE:");
+}
 
 export async function POST(request: Request) {
   try {
@@ -19,7 +25,14 @@ export async function POST(request: Request) {
     const { env } = await import("cloudflare:workers") as unknown as { env: RuntimeBindings };
     if (!env.AI) return apiError(503, "AI_BINDING_UNAVAILABLE", "ยังไม่ได้ผูก Workers AI binding ชื่อ AI");
     const model = env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash";
-    const result = await generatePerspectiveArticle(env.AI, model, input);
+    const fallbackModel = env.WORKERS_AI_RESEARCH_MODEL || "@cf/meta/llama-3.1-8b-instruct-fast";
+    let result;
+    try {
+      result = await generatePerspectiveArticle(env.AI, model, input);
+    } catch (error) {
+      if (!isDraftShapeError(error) || model === fallbackModel) throw error;
+      result = await generatePerspectiveArticle(env.AI, fallbackModel, input);
+    }
     if (!result.validation.valid || result.validation.readiness_score < 70) {
       return apiError(422, "ARTICLE_NOT_READY", "AI draft ไม่ผ่านกฎก่อนเผยแพร่", result.validation.readiness_notes);
     }

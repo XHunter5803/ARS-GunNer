@@ -24,30 +24,97 @@ function extractText(output: unknown): string {
   if (!output || typeof output !== "object") return "";
   const record = output as Record<string, unknown>;
   if (typeof record.response === "string") return record.response;
+  if (typeof record.output_text === "string") return record.output_text;
   const choices = Array.isArray(record.choices) ? record.choices : [];
   const first = choices[0] as Record<string, unknown> | undefined;
   const message = first?.message as Record<string, unknown> | undefined;
-  return typeof message?.content === "string" ? message.content : "";
+  if (typeof message?.content === "string") return message.content;
+  if (Array.isArray(message?.content)) {
+    return message.content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (!part || typeof part !== "object") return "";
+        const row = part as Record<string, unknown>;
+        return typeof row.text === "string" ? row.text : "";
+      })
+      .join("");
+  }
+  return "";
+}
+
+function draftObject(value: unknown): Partial<PerspectiveArticle> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if ("headline" in record && "paragraphs" in record) return record as Partial<PerspectiveArticle>;
+  for (const key of ["response", "article", "draft", "result", "output"]) {
+    const nested = record[key];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const candidate = draftObject(nested);
+      if (candidate) return candidate;
+    }
+  }
+  return null;
 }
 
 function extractDraft(output: unknown) {
-  if (output && typeof output === "object") {
-    const record = output as Record<string, unknown>;
-    if (record.response && typeof record.response === "object" && !Array.isArray(record.response)) {
-      return record.response as Partial<PerspectiveArticle>;
-    }
-    if ("headline" in record && "paragraphs" in record) return record as Partial<PerspectiveArticle>;
-  }
+  const direct = draftObject(output);
+  if (direct) return direct;
   return parseJsonObject(extractText(output));
 }
 
 function parseJsonObject(value: string) {
-  const withoutFence = value.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-  const start = withoutFence.indexOf("{");
-  const end = withoutFence.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("AI_JSON_MISSING");
-  return JSON.parse(withoutFence.slice(start, end + 1)) as Partial<PerspectiveArticle>;
+  const clean = value.replace(/^\uFEFF/, "").replace(/^```(?:json)?\s*/i, "").replace(/\s*```[\s\S]*$/i, "").trim();
+  if (!clean) throw new Error("AI_JSON_MISSING");
+  try {
+    const parsed = JSON.parse(clean);
+    const direct = draftObject(parsed);
+    if (direct) return direct;
+  } catch {
+    // Some models add a short explanation around an otherwise valid JSON object.
+  }
+
+  for (let start = clean.indexOf("{"); start >= 0; start = clean.indexOf("{", start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < clean.length; index += 1) {
+      const char = clean[index];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === "\"") inString = false;
+        continue;
+      }
+      if (char === "\"") {
+        inString = true;
+        continue;
+      }
+      if (char === "{") depth += 1;
+      if (char === "}") depth -= 1;
+      if (depth !== 0) continue;
+      try {
+        const parsed = JSON.parse(clean.slice(start, index + 1));
+        const direct = draftObject(parsed);
+        if (direct) return direct;
+      } catch {
+        break;
+      }
+      break;
+    }
+  }
+  throw new Error("AI_JSON_INVALID");
 }
+
+const articleDraftSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    headline: { type: "string" },
+    paragraphs: { type: "array", items: { type: "string" } },
+    closing_question: { type: "string" },
+  },
+  required: ["headline", "paragraphs", "closing_question"],
+} as const;
 
 function promptFor(input: GeneratePerspectiveInput) {
   const analysis = analyzeSources(input.sources);
@@ -103,20 +170,41 @@ function incompleteDraftFields(draft: Partial<PerspectiveArticle>) {
 
 export async function generatePerspectiveArticle(ai: WorkersAi, model: string, input: GeneratePerspectiveInput) {
   const { analysis, messages } = promptFor(input);
-  const runDraft = async (retryFields: string[] = []) => {
-    const retryMessage = retryFields.length
-      ? [{ role: "user", content: `The previous JSON was incomplete. Regenerate the full article and include: ${retryFields.join(", ")}. Return one complete JSON object only.` }]
+  const runDraft = async (retryReason = "") => {
+    const retryMessage = retryReason
+      ? [{ role: "user", content: `${retryReason} Regenerate the full article. Return exactly one complete JSON object matching the required schema, without Markdown or explanations.` }]
       : [];
-    const output = await ai.run(model, { messages: [...messages, ...retryMessage], temperature: 0.15, max_tokens: 3_000 });
+    const output = await ai.run(model, {
+      messages: [...messages, ...retryMessage],
+      response_format: {
+        type: "json_schema",
+        json_schema: articleDraftSchema,
+      },
+      temperature: 0.1,
+      max_tokens: 3_500,
+    });
     return extractDraft(output);
   };
-  let draft = await runDraft();
-  let missingFields = incompleteDraftFields(draft);
-  if (missingFields.length) {
-    draft = await runDraft(missingFields);
-    missingFields = incompleteDraftFields(draft);
+
+  let draft: Partial<PerspectiveArticle> | null = null;
+  let missingFields: string[] = [];
+  let retryReason = "";
+  let lastShapeError = "AI_JSON_INVALID";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      draft = await runDraft(retryReason);
+      missingFields = incompleteDraftFields(draft);
+      if (!missingFields.length) break;
+      lastShapeError = `AI_DRAFT_INCOMPLETE:${missingFields.join("|")}`;
+      retryReason = `The previous response was incomplete. It was missing or invalid: ${missingFields.join(", ")}.`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes("AI_JSON")) throw error;
+      lastShapeError = message || "AI_JSON_INVALID";
+      retryReason = "The previous response was not valid JSON.";
+    }
   }
-  if (missingFields.length) throw new Error(`AI_DRAFT_INCOMPLETE:${missingFields.join("|")}`);
+  if (!draft || missingFields.length) throw new Error(lastShapeError);
   if (!analysis.main_source) throw new Error("MAIN_SOURCE_MISSING");
 
   const main = analysis.main_source;

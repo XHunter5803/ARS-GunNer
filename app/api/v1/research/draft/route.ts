@@ -24,6 +24,11 @@ function validSourceType(value: string | null): SourceType {
   return value === "official" || value === "original" || value === "reporter" ? value : "outlet";
 }
 
+function isDraftShapeError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  return message.includes("AI_JSON") || message.startsWith("AI_DRAFT_INCOMPLETE:");
+}
+
 export async function POST(request: Request) {
   try {
     const input = await readJson<ResearchRequest>(request, 100_000);
@@ -102,7 +107,7 @@ export async function POST(request: Request) {
       };
     });
 
-    const generated = await generatePerspectiveArticle(env.AI, generationModel, {
+    const generationInput: GeneratePerspectiveInput = {
       language: input.language,
       category: input.category,
       signature: input.signature,
@@ -114,7 +119,14 @@ export async function POST(request: Request) {
         main_points: research.brief.main_points,
         conflicts: research.brief.conflicts,
       },
-    });
+    };
+    let generated;
+    try {
+      generated = await generatePerspectiveArticle(env.AI, generationModel, generationInput);
+    } catch (error) {
+      if (!isDraftShapeError(error) || generationModel === researchModel) throw error;
+      generated = await generatePerspectiveArticle(env.AI, researchModel, generationInput);
+    }
 
     return apiJson({
       keyword,
@@ -129,7 +141,7 @@ export async function POST(request: Request) {
       })),
       article: generated.article,
       validation: generated.validation,
-      models: { reranker: rerankerModel, research: researchModel, writer: generationModel },
+      models: { reranker: rerankerModel, research: researchModel, writer: generated.model, requested_writer: generationModel },
     }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
