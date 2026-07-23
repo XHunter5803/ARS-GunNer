@@ -89,10 +89,34 @@ function promptFor(input: GeneratePerspectiveInput) {
   };
 }
 
+function incompleteDraftFields(draft: Partial<PerspectiveArticle>) {
+  const missing: string[] = [];
+  if (typeof draft.headline !== "string" || !draft.headline.trim()) missing.push("headline");
+  if (!Array.isArray(draft.paragraphs) || draft.paragraphs.length < 5 || draft.paragraphs.length > 7) {
+    missing.push("paragraphs 5–7");
+  } else if (draft.paragraphs.some((paragraph) => typeof paragraph !== "string" || !paragraph.trim())) {
+    missing.push("non-empty paragraphs");
+  }
+  if (typeof draft.closing_question !== "string" || !draft.closing_question.trim()) missing.push("closing_question");
+  return missing;
+}
+
 export async function generatePerspectiveArticle(ai: WorkersAi, model: string, input: GeneratePerspectiveInput) {
   const { analysis, messages } = promptFor(input);
-  const output = await ai.run(model, { messages, temperature: 0.15, max_tokens: 3_000 });
-  const draft = extractDraft(output);
+  const runDraft = async (retryFields: string[] = []) => {
+    const retryMessage = retryFields.length
+      ? [{ role: "user", content: `The previous JSON was incomplete. Regenerate the full article and include: ${retryFields.join(", ")}. Return one complete JSON object only.` }]
+      : [];
+    const output = await ai.run(model, { messages: [...messages, ...retryMessage], temperature: 0.15, max_tokens: 3_000 });
+    return extractDraft(output);
+  };
+  let draft = await runDraft();
+  let missingFields = incompleteDraftFields(draft);
+  if (missingFields.length) {
+    draft = await runDraft(missingFields);
+    missingFields = incompleteDraftFields(draft);
+  }
+  if (missingFields.length) throw new Error(`AI_DRAFT_INCOMPLETE:${missingFields.join("|")}`);
   if (!analysis.main_source) throw new Error("MAIN_SOURCE_MISSING");
 
   const main = analysis.main_source;

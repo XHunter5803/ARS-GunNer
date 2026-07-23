@@ -1,4 +1,4 @@
-# ARS GunNer v0.7.2 — Grounded Research Brief
+# ARS GunNer v0.7.3 — Validation Chain + Premier League Teams
 
 1. Close the running development server.
 2. Extract this ZIP.
@@ -16,6 +16,8 @@ Select exactly 1 real news item on Dashboard → click **ยืนยันแ�
 After deployment, click **Sync RSS** once. Existing feed rows are refreshed so newly detected image URLs can appear as covers; no D1 migration is required.
 
 Research uses `@cf/meta/llama-3.1-8b-instruct-fast` for schema-controlled JSON. Every evidence point carries source IDs, unsupported `confirmed` labels are downgraded on the server, and the Article Editor provides direct source links for verification.
+
+The Article Editor now shows each automated checker and the final Human Editor gate. If the writer omits required article fields, the system retries once and then returns the exact missing fields. The League tab includes compact filters for all 20 official 2026/27 Premier League clubs.
 
 The AI may add original transitions and clearly marked analysis supported by the gathered evidence. It must not copy article sentences or invent facts, quotes, numbers, dates, people, or sources.
 

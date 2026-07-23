@@ -135,7 +135,11 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "";
     if (message === "PAYLOAD_TOO_LARGE") return apiError(413, "PAYLOAD_TOO_LARGE", "ข้อมูลมีขนาดใหญ่เกินกำหนด");
     if (message.includes("RESEARCH_JSON") || message === "RESEARCH_BRIEF_EMPTY") return apiError(502, "AI_INVALID_RESEARCH", "AI ไม่ได้ส่ง Research Brief ที่มีหลักฐานอ้างอิงครบ กรุณาลองใหม่");
-    if (message.includes("AI_JSON")) return apiError(502, "AI_INVALID_DRAFT", "Research Brief สำเร็จ แต่ AI ส่ง Draft บทความมาไม่ครบ กรุณาลองใหม่");
+    if (message.startsWith("AI_DRAFT_INCOMPLETE:")) {
+      const fields = message.slice("AI_DRAFT_INCOMPLETE:".length).split("|").filter(Boolean);
+      return apiError(502, "AI_INCOMPLETE_DRAFT", "Research Brief สำเร็จ แต่ Draft ยังขาดส่วนบังคับหลังลองสร้างใหม่แล้ว", fields);
+    }
+    if (message.includes("AI_JSON")) return apiError(502, "AI_INVALID_DRAFT", "Research Brief สำเร็จ แต่ AI ส่ง JSON ของ Draft ไม่ถูกต้อง กรุณาลองใหม่");
     if (/D1|database|SQL/i.test(message)) return databaseError(error);
     return apiError(500, "RESEARCH_DRAFT_FAILED", "ไม่สามารถรวบรวมข้อมูลและสร้าง Draft ได้ กรุณาลองใหม่");
   }

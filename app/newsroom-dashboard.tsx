@@ -31,6 +31,12 @@ import type { AutoDraftRequest } from "./editorial-workspaces";
 
 type NavId = "dashboard" | "discovery" | "favorites" | "sources" | "articles" | "publishing" | "settings";
 type Category = "All" | "Transfer" | "Club" | "League";
+type PremierLeagueTeam = {
+  id: string;
+  short: string;
+  name: string;
+  aliases: string[];
+};
 
 type FeedItem = {
   id: number;
@@ -81,6 +87,29 @@ const navItems: NavItem[] = [
   { id: "articles", label: "Article Editor", icon: FileText },
   { id: "publishing", label: "Telegram", icon: MessageCircle },
   { id: "settings", label: "Settings", icon: Settings },
+];
+
+const premierLeagueTeams: PremierLeagueTeam[] = [
+  { id: "arsenal", short: "ARS", name: "Arsenal", aliases: ["arsenal"] },
+  { id: "aston-villa", short: "AVL", name: "Aston Villa", aliases: ["aston villa", "villa"] },
+  { id: "bournemouth", short: "BOU", name: "Bournemouth", aliases: ["bournemouth", "afc bournemouth"] },
+  { id: "brentford", short: "BRE", name: "Brentford", aliases: ["brentford"] },
+  { id: "brighton", short: "BHA", name: "Brighton", aliases: ["brighton", "brighton & hove albion", "brighton and hove albion"] },
+  { id: "chelsea", short: "CHE", name: "Chelsea", aliases: ["chelsea"] },
+  { id: "coventry", short: "COV", name: "Coventry", aliases: ["coventry", "coventry city"] },
+  { id: "crystal-palace", short: "CRY", name: "Crystal Palace", aliases: ["crystal palace", "palace"] },
+  { id: "everton", short: "EVE", name: "Everton", aliases: ["everton"] },
+  { id: "fulham", short: "FUL", name: "Fulham", aliases: ["fulham"] },
+  { id: "hull", short: "HUL", name: "Hull City", aliases: ["hull", "hull city"] },
+  { id: "ipswich", short: "IPS", name: "Ipswich", aliases: ["ipswich", "ipswich town"] },
+  { id: "leeds", short: "LEE", name: "Leeds", aliases: ["leeds", "leeds united"] },
+  { id: "liverpool", short: "LIV", name: "Liverpool", aliases: ["liverpool"] },
+  { id: "man-city", short: "MCI", name: "Man City", aliases: ["manchester city", "man city"] },
+  { id: "man-utd", short: "MUN", name: "Man Utd", aliases: ["manchester united", "man utd", "man united"] },
+  { id: "newcastle", short: "NEW", name: "Newcastle", aliases: ["newcastle", "newcastle united"] },
+  { id: "nottingham-forest", short: "NFO", name: "Nott'm Forest", aliases: ["nottingham forest", "nott'm forest", "nottm forest"] },
+  { id: "sunderland", short: "SUN", name: "Sunderland", aliases: ["sunderland"] },
+  { id: "tottenham", short: "TOT", name: "Tottenham", aliases: ["tottenham", "tottenham hotspur", "spurs"] },
 ];
 
 function formatDate(value: string | null, fallback: string) {
@@ -182,6 +211,7 @@ export default function NewsroomDashboard() {
   const [syncing, setSyncing] = useState(false);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<Category>("All");
+  const [leagueTeam, setLeagueTeam] = useState("all");
   const [selectedFeedItemId, setSelectedFeedItemId] = useState<number | null>(null);
   const [autoDraft, setAutoDraft] = useState<AutoDraftRequest | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -243,8 +273,15 @@ export default function NewsroomDashboard() {
 
   const visibleItems = useMemo(() => {
     const term = query.trim().toLocaleLowerCase("en-US");
-    return items.filter((item) => (category === "All" || item.category === category) && (!term || `${item.headline} ${item.summary} ${item.sourceName} ${item.reporter || ""}`.toLocaleLowerCase("en-US").includes(term)));
-  }, [category, items, query]);
+    const selectedTeam = premierLeagueTeams.find((team) => team.id === leagueTeam);
+    return items.filter((item) => {
+      const searchable = `${item.headline} ${item.summary} ${item.sourceName} ${item.reporter || ""}`.toLocaleLowerCase("en-US");
+      const categoryMatches = category === "League" && selectedTeam ? true : category === "All" || item.category === category;
+      const queryMatches = !term || searchable.includes(term);
+      const teamMatches = category !== "League" || !selectedTeam || selectedTeam.aliases.some((alias) => searchable.includes(alias));
+      return categoryMatches && queryMatches && teamMatches;
+    });
+  }, [category, items, leagueTeam, query]);
 
   const selectedItem = items.find((item) => item.id === selectedFeedItemId) ?? null;
 
@@ -306,8 +343,21 @@ export default function NewsroomDashboard() {
         {inboxVisible ? (
           <div className="mx-auto max-w-[1500px] px-4 pb-28 pt-4 sm:px-6">
             <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
-              {(["All", "Transfer", "Club", "League"] as Category[]).map((item) => <button type="button" key={item} onClick={() => setCategory(item)} className={`rounded px-3 py-2 text-[10px] font-bold ${category === item ? "bg-[#f3eef6] text-[#251532]" : "text-[#9585a5] hover:bg-white/[.05] hover:text-white"}`}>{item === "All" ? `All News · ${total}` : item}</button>)}
+              {(["All", "Transfer", "Club", "League"] as Category[]).map((item) => <button type="button" key={item} onClick={() => { setCategory(item); if (item !== "League") setLeagueTeam("all"); }} className={`rounded px-3 py-2 text-[10px] font-bold ${category === item ? "bg-[#f3eef6] text-[#251532]" : "text-[#9585a5] hover:bg-white/[.05] hover:text-white"}`}>{item === "All" ? `All News · ${total}` : item}</button>)}
             </div>
+            {category === "League" ? (
+              <div className="mb-4 overflow-x-auto rounded-lg border border-white/10 bg-[#1c102a] p-2">
+                <div className="flex min-w-max items-center gap-1.5" aria-label="ทีม Premier League ฤดูกาล 2026/27">
+                  <button type="button" onClick={() => setLeagueTeam("all")} className={`h-9 rounded-md px-3 text-[9px] font-black ${leagueTeam === "all" ? "bg-[#65ddcb] text-[#172a28]" : "bg-white/[.05] text-[#a99ab7] hover:bg-white/10 hover:text-white"}`}>ALL</button>
+                  {premierLeagueTeams.map((team) => (
+                    <button key={team.id} type="button" title={team.name} aria-label={`กรองข่าว ${team.name}`} onClick={() => setLeagueTeam(team.id)} className={`flex h-9 items-center gap-2 rounded-md px-2.5 text-[9px] font-black transition ${leagueTeam === team.id ? "bg-[#f3eef6] text-[#251532]" : "bg-white/[.05] text-[#a99ab7] hover:bg-white/10 hover:text-white"}`}>
+                      <span className={`grid size-5 place-items-center rounded text-[7px] ${leagueTeam === team.id ? "bg-[#2d1a3d] text-[#65ddcb]" : "bg-[#3b2450] text-[#c7b5d5]"}`}>{team.short.slice(0, 2)}</span>
+                      <span>{team.short}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
               <section className="min-w-0 space-y-2">
                 {loading ? <div className="grid min-h-80 place-items-center rounded-lg border border-white/10 bg-[#21142f]"><div className="text-center"><LoaderCircle className="mx-auto size-7 animate-spin text-[#60d7c6]" /><p className="mt-3 text-[11px] text-[#9e90aa]">กำลังโหลดข่าวจริงจาก D1</p></div></div> : error ? <div className="grid min-h-80 place-items-center rounded-lg border border-[#8e435e] bg-[#291526]"><div className="text-center"><p className="text-xs font-bold">{error}</p><button type="button" onClick={() => void loadFeed()} className="mt-3 rounded bg-white px-4 py-2 text-[10px] font-bold text-[#291526]">ลองใหม่</button></div></div> : visibleItems.length ? visibleItems.map((item) => <NewsRow key={item.id} item={item} selected={selectedFeedItemId === item.id} onSelect={() => setSelectedFeedItemId((current) => current === item.id ? null : item.id)} />) : <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-white/15 bg-[#21142f]"><div className="text-center"><Newspaper className="mx-auto size-7 text-[#786989]" /><p className="mt-3 text-xs font-bold">ยังไม่มีข่าวที่ตรงกับตัวกรอง</p><p className="mt-1 text-[10px] text-[#8d7f9a]">เพิ่ม RSS Source หรือกด Sync RSS</p></div></div>}
