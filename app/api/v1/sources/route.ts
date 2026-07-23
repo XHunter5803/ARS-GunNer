@@ -2,6 +2,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { sources } from "../../../../db/schema";
 import { apiError, apiJson, databaseError, readJson } from "../../../../lib/api-response";
+import { runRssIngestion } from "../../../../lib/rss-ingestion";
 import { isSafePublicHttpsUrl } from "../../../../lib/security";
 
 const sourceTypes = new Set(["official", "original", "reporter", "outlet"]);
@@ -52,7 +53,12 @@ export async function POST(request: Request) {
         reliabilityWeight,
       })
       .returning();
-    return apiJson({ source }, { status: 201 });
+    const { env } = await import("cloudflare:workers") as unknown as { env: { DB?: D1Database } };
+    const ingestion = env.DB
+      ? await runRssIngestion(env.DB, { sourceId: source.id })
+      : { sources_checked: 0, sources_succeeded: 0, sources_failed: 1, items_seen: 0, items_inserted: 0, errors: [{ source_id: source.id, message: "DATABASE_UNAVAILABLE" }] };
+    const [updatedSource] = await db.select().from(sources).where(eq(sources.id, source.id)).limit(1);
+    return apiJson({ source: updatedSource ?? source, ingestion }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "PAYLOAD_TOO_LARGE") return apiError(413, "PAYLOAD_TOO_LARGE", "ข้อมูลมีขนาดใหญ่เกินกำหนด");
@@ -64,7 +70,19 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const payload = await readJson<{ id?: number; status?: string }>(request);
+    const payload = await readJson<{ id?: number; status?: string; action?: string }>(request);
+    if (payload.action === "sync") {
+      if (!Number.isInteger(payload.id) || Number(payload.id) < 1) {
+        return apiError(400, "VALIDATION_ERROR", "ต้องระบุ id ของแหล่งข่าวที่ต้องการ Sync");
+      }
+      const { env } = await import("cloudflare:workers") as unknown as { env: { DB?: D1Database } };
+      if (!env.DB) return apiError(503, "DATABASE_UNAVAILABLE", "ไม่พบ D1 binding DB");
+      const ingestion = await runRssIngestion(env.DB, { sourceId: Number(payload.id) });
+      const db = await getDb();
+      const [source] = await db.select().from(sources).where(eq(sources.id, Number(payload.id))).limit(1);
+      if (!source) return apiError(404, "NOT_FOUND", "ไม่พบแหล่งข่าว");
+      return apiJson({ source, ingestion });
+    }
     if (!Number.isInteger(payload.id) || !payload.status || !statuses.has(payload.status)) {
       return apiError(400, "VALIDATION_ERROR", "ต้องระบุ id และ status เป็น active หรือ paused");
     }

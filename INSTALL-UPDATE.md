@@ -1,13 +1,17 @@
-# ARS GunNer v0.8.1 — Draft JSON Recovery
+# ARS GunNer v0.8.2 — Multi-Source RSS Recovery
 
 1. Close the running development server.
 2. Extract this ZIP.
 3. Copy every extracted file and folder into the root of your existing `ARS-GunNer` repository.
 4. Allow Windows to replace files with the same names. Keep the nested folder structure.
-5. In GitHub Desktop, confirm the changed files, use summary `Fix Workers AI Draft JSON recovery`, then commit and push to `main`.
+5. In GitHub Desktop, confirm the changed files, use summary `Fix multi-source RSS sync and retries`, then commit and push to `main`.
 6. Cloudflare Workers Builds should deploy automatically.
 
 No new D1 migration is required for this update.
+
+## Multi-source RSS fix
+
+Adding a Source now saves it and immediately attempts to import that RSS/Atom feed. A failed fetch no longer removes the Source from future sync rotation. The registry shows the last fetch time, a readable error, and a per-source retry button. Scheduled sync uses oldest-fetch-first rotation so Sources added later are not permanently hidden behind the first eight feeds.
 
 ## Draft recovery update
 

@@ -84,6 +84,13 @@ test("ships the semantic Draft workflow and daily discovery controls", async () 
   assert.match(dashboard, /ARS/);
   assert.match(dashboard, /TOT/);
   assert.match(source, /Validation Chain/);
+  assert.match(source, /Add & sync source/);
+  assert.match(source, /lastError/);
+  assert.match(source, /action: "sync"/);
+  const ingestion = await readFile(new URL("../lib/rss-ingestion.ts", import.meta.url), "utf8");
+  assert.match(ingestion, /status IN \('active', 'error'\)/);
+  assert.match(ingestion, /last_fetched_at ASC/);
+  assert.match(ingestion, /sourceId/);
 });
 
 test("health endpoint returns a structured service response", async () => {
@@ -98,7 +105,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.8.1");
+  assert.equal(payload.data.version, "0.8.2");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });

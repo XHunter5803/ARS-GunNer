@@ -21,6 +21,11 @@ type SourceRow = {
   feed_url: string;
 };
 
+export type RssIngestionOptions = {
+  limit?: number;
+  sourceId?: number;
+};
+
 function toArray<T>(value: T | T[] | undefined | null): T[] {
   if (value == null) return [];
   return Array.isArray(value) ? value : [value];
@@ -175,11 +180,22 @@ async function fetchFeed(feedUrl: string) {
   return xml;
 }
 
-export async function runRssIngestion(db: D1Database, limit = 8) {
-  const sourceResult = await db
-    .prepare("SELECT id, name, feed_url FROM sources WHERE status = 'active' ORDER BY reliability_weight DESC, id ASC LIMIT ?")
-    .bind(Math.min(Math.max(limit, 1), 12))
-    .all<SourceRow>();
+export async function runRssIngestion(db: D1Database, options: RssIngestionOptions = {}) {
+  const sourceId = Number.isInteger(options.sourceId) && Number(options.sourceId) > 0
+    ? Number(options.sourceId)
+    : null;
+  const limit = Math.min(Math.max(options.limit ?? 12, 1), 24);
+  const sourceResult = sourceId
+    ? await db
+      .prepare("SELECT id, name, feed_url FROM sources WHERE id = ? AND status != 'paused' LIMIT 1")
+      .bind(sourceId)
+      .all<SourceRow>()
+    : await db
+      .prepare(
+        "SELECT id, name, feed_url FROM sources WHERE status IN ('active', 'error') ORDER BY CASE WHEN last_fetched_at IS NULL THEN 0 ELSE 1 END, last_fetched_at ASC, reliability_weight DESC, id ASC LIMIT ?",
+      )
+      .bind(limit)
+      .all<SourceRow>();
   const sourceRows = sourceResult.results ?? [];
   const result = { sources_checked: sourceRows.length, sources_succeeded: 0, sources_failed: 0, items_seen: 0, items_inserted: 0, errors: [] as Array<{ source_id: number; message: string }> };
 

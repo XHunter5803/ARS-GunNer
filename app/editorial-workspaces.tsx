@@ -18,6 +18,7 @@ import {
   MessageCircle,
   Plus,
   RadioTower,
+  RefreshCw,
   Save,
   Search,
   ShieldCheck,
@@ -65,6 +66,8 @@ type Source = {
   sourceType: "official" | "original" | "reporter" | "outlet";
   reliabilityWeight: number;
   status: "active" | "paused" | "error";
+  lastFetchedAt: string | null;
+  lastError: string | null;
   demo?: boolean;
 };
 
@@ -83,8 +86,8 @@ const demoFavorites: Favorite[] = [
 ];
 
 const demoSources: Source[] = [
-  { id: -1, name: "Official Club Feed", homepageUrl: "https://example.com", feedUrl: "https://example.com/rss", sourceType: "official", reliabilityWeight: 100, status: "active", demo: true },
-  { id: -2, name: "Demo Sports Wire", homepageUrl: "https://example.org", feedUrl: "https://example.org/feed", sourceType: "original", reliabilityWeight: 85, status: "active", demo: true },
+  { id: -1, name: "Official Club Feed", homepageUrl: "https://example.com", feedUrl: "https://example.com/rss", sourceType: "official", reliabilityWeight: 100, status: "active", lastFetchedAt: null, lastError: null, demo: true },
+  { id: -2, name: "Demo Sports Wire", homepageUrl: "https://example.org", feedUrl: "https://example.org/feed", sourceType: "original", reliabilityWeight: 85, status: "active", lastFetchedAt: null, lastError: null, demo: true },
 ];
 
 const factGroups = {
@@ -264,6 +267,15 @@ function SourcesWorkspace({ notify }: { notify: (message: string) => void }) {
   const [sources, setSources] = useState<Source[]>(demoSources);
   const [mode, setMode] = useState<"loading" | "live" | "demo" | "error">("loading");
   const [form, setForm] = useState({ name: "", homepage: "", feed: "", type: "outlet" as Source["sourceType"] });
+  const [syncingSourceId, setSyncingSourceId] = useState<number | null>(null);
+
+  const loadSources = useCallback(async () => {
+    const response = await fetch("/api/v1/sources");
+    const payload = await response.json() as { data?: { sources?: Source[] } };
+    if (!response.ok) throw new Error("D1 unavailable");
+    setSources(payload.data?.sources ?? []);
+    setMode("live");
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -279,6 +291,16 @@ function SourcesWorkspace({ notify }: { notify: (message: string) => void }) {
     return () => { active = false; };
   }, []);
 
+  const readableSourceError = (value: string | null) => {
+    if (!value) return "";
+    if (value === "RSS_RETURNED_HTML") return "URL นี้เป็นหน้าเว็บ ไม่ใช่ RSS/Atom feed";
+    if (value === "UNSAFE_FEED_URL") return "Feed URL ต้องเป็น HTTPS สาธารณะ";
+    if (value === "RSS_TOO_LARGE" || value === "RSS_XML_SIZE_INVALID") return "ไฟล์ RSS ใหญ่หรือผิดรูปแบบ";
+    if (value.startsWith("RSS_HTTP_")) return `เว็บไซต์ตอบกลับ HTTP ${value.replace("RSS_HTTP_", "")}`;
+    if (value.includes("timeout") || value.includes("Timeout")) return "แหล่งข่าวตอบกลับช้าเกิน 10 วินาที";
+    return value;
+  };
+
   const addSource = async () => {
     if (mode !== "live") return notify("ยังไม่บันทึก: D1 ไม่พร้อมในโหมด Demo");
     const response = await fetch("/api/v1/sources", {
@@ -286,11 +308,37 @@ function SourcesWorkspace({ notify }: { notify: (message: string) => void }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: form.name, homepage_url: form.homepage, feed_url: form.feed, source_type: form.type, reliability_weight: form.type === "official" ? 100 : 70 }),
     });
-    const payload = await response.json() as { data?: { source?: Source }; error?: { message?: string } };
+    const payload = await response.json() as { data?: { source?: Source; ingestion?: { items_inserted?: number; sources_failed?: number; errors?: Array<{ message: string }> } }; error?: { message?: string } };
     if (!response.ok || !payload.data?.source) return notify(payload.error?.message || "เพิ่มแหล่งข่าวไม่สำเร็จ");
-    setSources((items) => [payload.data!.source!, ...items]);
+    await loadSources();
     setForm({ name: "", homepage: "", feed: "", type: "outlet" });
-    notify("บันทึกแหล่งข่าวลง D1 แล้ว");
+    if (payload.data.ingestion?.sources_failed) {
+      notify(`เพิ่ม Source แล้ว แต่ดึงข่าวไม่สำเร็จ: ${readableSourceError(payload.data.ingestion.errors?.[0]?.message ?? "")}`);
+    } else {
+      notify(`เพิ่ม Source และนำเข้า ${payload.data.ingestion?.items_inserted ?? 0} ข่าวแล้ว`);
+    }
+  };
+
+  const syncSource = async (source: Source) => {
+    if (source.demo || mode !== "live") return;
+    setSyncingSourceId(source.id);
+    try {
+      const response = await fetch("/api/v1/sources", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: source.id, action: "sync" }),
+      });
+      const payload = await response.json() as { data?: { ingestion?: { items_inserted?: number; sources_failed?: number; errors?: Array<{ message: string }> } }; error?: { message?: string } };
+      if (!response.ok) return notify(payload.error?.message || `Sync ${source.name} ไม่สำเร็จ`);
+      await loadSources();
+      if (payload.data?.ingestion?.sources_failed) {
+        notify(`${source.name}: ${readableSourceError(payload.data.ingestion.errors?.[0]?.message ?? "ดึงข่าวไม่สำเร็จ")}`);
+      } else {
+        notify(`${source.name}: นำเข้า/อัปเดต ${payload.data?.ingestion?.items_inserted ?? 0} ข่าว`);
+      }
+    } finally {
+      setSyncingSourceId(null);
+    }
   };
 
   return (
@@ -303,13 +351,27 @@ function SourcesWorkspace({ notify }: { notify: (message: string) => void }) {
           <input aria-label="RSS Feed URL" placeholder="https://example.com/rss" value={form.feed} onChange={(event) => setForm({ ...form, feed: event.target.value })} className="h-11 w-full rounded-xl border border-[#dedad3] px-3 text-xs outline-none focus:border-[#dc626a]" />
           <select aria-label="ประเภทแหล่งข่าว" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as Source["sourceType"] })} className="h-11 w-full rounded-xl border border-[#dedad3] bg-white px-3 text-xs outline-none focus:border-[#dc626a]"><option value="official">Official</option><option value="original">Original source</option><option value="reporter">Reporter</option><option value="outlet">News outlet</option></select>
         </div>
-        <button type="button" onClick={() => void addSource()} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#18243a] py-3 text-[11px] font-bold text-white"><Plus className="size-4" />Add source</button>
-        <div className="mt-4"><StatusBanner mode={mode} message={mode === "live" ? "เชื่อม D1 แล้ว · ตรวจ HTTPS และ Private network ก่อนบันทึก" : "แสดงข้อมูล Demo · ยังไม่ส่ง Request ไปยัง RSS ภายนอก"} /></div>
+        <button type="button" onClick={() => void addSource()} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#18243a] py-3 text-[11px] font-bold text-white"><Plus className="size-4" />Add & sync source</button>
+        <div className="mt-4"><StatusBanner mode={mode} message={mode === "live" ? "เพิ่มแล้วระบบจะดึง RSS ทันที · ถ้าล้มเหลวจะแสดงเหตุผลและปุ่มลองใหม่" : "แสดงข้อมูล Demo · ยังไม่ส่ง Request ไปยัง RSS ภายนอก"} /></div>
       </article>
       <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
         <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold">Source registry</h2><span className="rounded-full bg-[#f1eee8] px-2.5 py-1 text-[9px] font-bold">{sources.length} feeds</span></div>
         <div className="mt-4 space-y-2">
-          {sources.map((source) => <div key={source.id} className="flex items-center gap-3 rounded-xl border border-[#ece8e1] p-3"><div className="grid size-10 place-items-center rounded-xl bg-[#edf4ff] text-[#3f6fc7]"><RadioTower className="size-4" /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-xs font-bold">{source.name}</p>{source.demo ? <span className="rounded bg-[#fff4d8] px-1.5 py-0.5 text-[8px] font-bold text-[#91650f]">DEMO</span> : null}</div><p className="mt-1 truncate text-[9px] text-[#9297a0]">{source.feedUrl}</p></div><div className="text-right"><p className="text-[10px] font-extrabold text-[#273044]">{source.reliabilityWeight}</p><p className="text-[8px] uppercase text-[#9ca0a8]">weight</p></div><span className={`size-2 rounded-full ${source.status === "active" ? "bg-[#48b88c]" : "bg-[#d9a044]"}`} /></div>)}
+          {sources.map((source) => (
+            <div key={source.id} className={`rounded-xl border p-3 ${source.status === "error" ? "border-[#f2c9cc] bg-[#fff9f9]" : "border-[#ece8e1]"}`}>
+              <div className="flex items-center gap-3">
+                <div className={`grid size-10 shrink-0 place-items-center rounded-xl ${source.status === "error" ? "bg-[#fff0f1] text-[#c23c45]" : "bg-[#edf4ff] text-[#3f6fc7]"}`}><RadioTower className="size-4" /></div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2"><p className="truncate text-xs font-bold">{source.name}</p>{source.demo ? <span className="rounded bg-[#fff4d8] px-1.5 py-0.5 text-[8px] font-bold text-[#91650f]">DEMO</span> : null}<span className={`rounded-full px-2 py-0.5 text-[8px] font-bold uppercase ${source.status === "error" ? "bg-[#fff0f1] text-[#b8343d]" : source.status === "paused" ? "bg-[#fff5dd] text-[#8d6414]" : "bg-[#eaf9f2] text-[#247a5e]"}`}>{source.status}</span></div>
+                  <p className="mt-1 truncate text-[9px] text-[#9297a0]">{source.feedUrl}</p>
+                  <p className="mt-1 text-[8px] text-[#a0a4ac]">{source.lastFetchedAt ? `ตรวจล่าสุด ${new Date(source.lastFetchedAt).toLocaleString("th-TH")}` : "ยังไม่เคยดึงข่าว"}</p>
+                </div>
+                <div className="text-right"><p className="text-[10px] font-extrabold text-[#273044]">{source.reliabilityWeight}</p><p className="text-[8px] uppercase text-[#9ca0a8]">weight</p></div>
+              </div>
+              {source.lastError ? <p className="mt-2 rounded-lg bg-[#fff0f1] px-3 py-2 text-[9px] font-semibold text-[#a9343d]">{readableSourceError(source.lastError)}</p> : null}
+              {!source.demo && source.status !== "paused" ? <button type="button" onClick={() => void syncSource(source)} disabled={syncingSourceId === source.id} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#dcd7cf] bg-white py-2 text-[9px] font-bold text-[#4d5665] disabled:opacity-50">{syncingSourceId === source.id ? <LoaderCircle className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}{source.status === "error" ? "ลองดึงข่าวอีกครั้ง" : "Sync source now"}</button> : null}
+            </div>
+          ))}
         </div>
       </article>
     </section>
