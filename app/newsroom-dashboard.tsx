@@ -1,43 +1,27 @@
 "use client";
 
 import {
+  ArrowLeft,
   ArrowRight,
-  ArrowUpRight,
-  AtSign,
-  Bell,
-  CalendarDays,
+  BookOpenText,
   Check,
   ChevronRight,
-  CircleCheck,
-  Clock3,
-  Database,
-  FileCheck2,
+  CircleUserRound,
   FileText,
   Globe2,
-  Languages,
-  LayoutDashboard,
-  ListChecks,
+  Home,
+  Inbox,
+  LoaderCircle,
   Menu,
   MessageCircle,
-  MoreHorizontal,
   Newspaper,
-  PencilLine,
   Plus,
-  Radar,
   RadioTower,
   RefreshCw,
-  Rss,
   Search,
-  Send,
   Settings,
-  Share2,
-  ShieldCheck,
-  SlidersHorizontal,
-  Sparkles,
   Star,
-  TrendingUp,
   UserCheck,
-  WandSparkles,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -45,28 +29,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import EditorialWorkspace from "./editorial-workspaces";
 import type { AutoDraftRequest } from "./editorial-workspaces";
 
-type NavId =
-  | "dashboard"
-  | "discovery"
-  | "favorites"
-  | "sources"
-  | "fact-check"
-  | "articles"
-  | "publishing"
-  | "schedule"
-  | "settings";
+type NavId = "dashboard" | "discovery" | "favorites" | "sources" | "articles" | "publishing" | "settings";
+type Category = "All" | "Transfer" | "Club" | "League";
 
-type NavItem = {
-  id: NavId;
-  label: string;
-  labelTh: string;
-  icon: LucideIcon;
-  badge?: string;
-};
-
-type FeedCluster = {
+type FeedItem = {
   id: number;
-  category: "Transfer" | "Club" | "League";
+  category: Exclude<Category, "All">;
   headline: string;
   summary: string;
   sourceName: string;
@@ -80,11 +48,11 @@ type FeedCluster = {
 
 type FeedApiReport = {
   id: number;
-  category: FeedCluster["category"];
+  category: FeedItem["category"];
   headline: string;
   summary: string;
   source_name: string;
-  source_type: FeedCluster["sourceType"];
+  source_type: FeedItem["sourceType"];
   reporter: string | null;
   published_at: string | null;
   imported_at: string;
@@ -92,400 +60,133 @@ type FeedApiReport = {
   reliability_weight: number;
 };
 
-type StatItem = { label: string; value: string; change: string; icon: LucideIcon; tone: string };
-
-const primaryNav: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", labelTh: "ภาพรวม", icon: LayoutDashboard },
-  { id: "discovery", label: "Discovery", labelTh: "ค้นหาข่าว", icon: Radar },
-  { id: "favorites", label: "Favorites", labelTh: "รายการติดตาม", icon: Star },
-  { id: "sources", label: "Sources", labelTh: "แหล่งข่าว", icon: RadioTower },
-];
-
-const workflowNav: NavItem[] = [
-  { id: "fact-check", label: "Fact Check", labelTh: "ตรวจข้อเท็จจริง", icon: ShieldCheck, badge: "5" },
-  { id: "articles", label: "Articles", labelTh: "บทความ", icon: FileText, badge: "8" },
-  { id: "publishing", label: "Publishing", labelTh: "เผยแพร่", icon: Send, badge: "3" },
-  { id: "schedule", label: "Schedule", labelTh: "ตารางเวลา", icon: CalendarDays },
-];
-
-const sectionCopy: Record<NavId, { eyebrow: string; title: string; description: string }> = {
-  dashboard: {
-    eyebrow: "Newsroom intelligence",
-    title: "สวัสดีตอนเช้า, Editor",
-    description: "ติดตามข่าวที่กำลังขยับ ตรวจหลักฐาน และส่งงานที่พร้อมเผยแพร่จากที่เดียว",
-  },
-  discovery: {
-    eyebrow: "Discovery workspace",
-    title: "ค้นหาและรวมข่าวเรื่องเดียวกัน",
-    description: "จัดกลุ่ม RSS จาก Keyword, สำนักข่าว และ Reporter ก่อนส่งต่อให้ทีมตรวจสอบ",
-  },
-  favorites: {
-    eyebrow: "Monitoring rules",
-    title: "รายการที่ต้องติดตามเป็นพิเศษ",
-    description: "กำหนดคำค้น สำนักข่าว และ Reporter ที่ระบบควรให้ความสำคัญ",
-  },
-  sources: {
-    eyebrow: "Source control",
-    title: "สุขภาพของแหล่งข่าวและ RSS",
-    description: "ตรวจแหล่งต้นทาง เวลาอัปเดต และสถานะการดึงข้อมูลโดยไม่ซ้ำกัน",
-  },
-  "fact-check": {
-    eyebrow: "Verification desk",
-    title: "แยกข้อเท็จจริงออกจากข้อกล่าวอ้าง",
-    description: "เปรียบเทียบแหล่งข่าว ตรวจความขัดแย้ง และหยุดข่าวที่หลักฐานยังไม่พอ",
-  },
-  articles: {
-    eyebrow: "Perspective editor",
-    title: "Article Pattern: มุมมอง/บทวิเคราะห์",
-    description: "เขียนไทย อังกฤษ หรือสองภาษา พร้อม Readiness Score และ Revision History",
-  },
-  publishing: {
-    eyebrow: "Delivery queue",
-    title: "ตรวจ Preview ก่อนส่งทุกช่องทาง",
-    description: "ควบคุม Facebook, X และ Telegram พร้อมบันทึกผลการส่งอย่างชัดเจน",
-  },
-  schedule: {
-    eyebrow: "Editorial calendar",
-    title: "วางตารางเผยแพร่โดยไม่ชนกัน",
-    description: "เห็นงานที่อนุมัติแล้ว งานที่รอคิว และสถานะส่งจริงในปฏิทินเดียว",
-  },
-  settings: {
-    eyebrow: "Workspace settings",
-    title: "ตั้งค่าภาษา บทบาท และระบบเชื่อมต่อ",
-    description: "จัดการค่าพื้นฐานอย่างปลอดภัย โดยไม่แสดง Secret ในหน้าจอหรือ Log",
-  },
+type Suggestion = {
+  kind: "outlet" | "reporter";
+  value: string;
+  label: string;
+  article_count: number;
+  score: number;
+  reason: string;
 };
 
-const workspaceCards: Record<Exclude<NavId, "dashboard" | "discovery">, { icon: LucideIcon; title: string; text: string; meta: string }[]> = {
-  favorites: [
-    { icon: Search, title: "Keywords", text: "ตั้งคำค้นไทยและอังกฤษ พร้อมคำยกเว้นเพื่อลดข่าวรบกวน", meta: "12 active rules" },
-    { icon: Globe2, title: "News outlets", text: "ให้น้ำหนักแหล่งทางการและสำนักข่าวต้นทางก่อนบทความสรุป", meta: "18 outlets" },
-    { icon: UserCheck, title: "Reporters", text: "ติดตาม Reporter โดยตรงและรวมชื่อสะกดหลายรูปแบบ", meta: "9 reporters" },
-  ],
-  sources: [
-    { icon: Rss, title: "RSS health", text: "ตรวจเวลาอัปเดต รูปแบบ Feed และรายการที่อ่านไม่ได้", meta: "16 healthy · 2 review" },
-    { icon: Database, title: "Canonical links", text: "เก็บ URL มาตรฐานเพื่อหยุดข่าวซ้ำก่อนเข้าสู่คลัสเตอร์", meta: "99.2% deduplicated" },
-    { icon: RefreshCw, title: "Cron cycles", text: "แบ่งรอบดึงข่าวให้เหมาะกับ Free Tier และจำกัดการ Retry", meta: "Every 15 minutes" },
-  ],
-  "fact-check": [
-    { icon: Check, title: "Confirmed facts", text: "ข้อความที่มีหลักฐานตรงจากแหล่งทางการหรือแหล่งต้นทาง", meta: "21 facts confirmed" },
-    { icon: MessageCircle, title: "Reported claims", text: "ข้อกล่าวอ้างยังคงระดับถ้อยคำเดิม เช่น สนใจ ติดต่อ หรือเจรจา", meta: "8 claims to review" },
-    { icon: FileCheck2, title: "Conflict matrix", text: "แจ้งเมื่อวัน เวลา ตัวเลข หรือสถานะจากแต่ละแหล่งไม่ตรงกัน", meta: "2 active conflicts" },
-  ],
-  articles: [
-    { icon: WandSparkles, title: "Pattern writer", text: "สร้างต้นฉบับ 5–7 ย่อหน้าในโครง มุมมอง/บทวิเคราะห์", meta: "TH · EN · Bilingual" },
-    { icon: ListChecks, title: "Readiness gate", text: "ต่ำกว่า 70 คะแนนจะถูกกันออกจาก Auto-publish โดยอัตโนมัติ", meta: "8 ready · 4 review" },
-    { icon: PencilLine, title: "Revisions", text: "บันทึก JSON ทุกฉบับเพื่อเปรียบเทียบและย้อนดูเหตุผลการแก้ไข", meta: "Version history on" },
-  ],
-  publishing: [
-    { icon: Share2, title: "Facebook", text: "ตรวจข้อความ ภาพตัวอย่าง และเวลาส่งก่อนเข้าสู่คิว", meta: "1 queued" },
-    { icon: AtSign, title: "X", text: "ย่อข้อความโดยไม่เปลี่ยนระดับข่าวและคงลิงก์แหล่งอ้างอิง", meta: "1 needs review" },
-    { icon: MessageCircle, title: "Telegram", text: "ส่งบทความพร้อมบันทึก Delivery ID และผล Retry", meta: "1 scheduled" },
-  ],
-  schedule: [
-    { icon: CalendarDays, title: "Today", text: "14:30 · มุมมองตลาดซื้อขาย — Demo article", meta: "Approved" },
-    { icon: Clock3, title: "Tomorrow", text: "09:00 · สรุปข่าวเช้าแบบสองภาษา — Demo article", meta: "Review needed" },
-    { icon: Send, title: "Delivery log", text: "แยกผลสำเร็จ ล้มเหลว และงานที่กำลัง Retry ตามช่องทาง", meta: "98% success demo" },
-  ],
-  settings: [
-    { icon: Languages, title: "Language policy", text: "เลือก th, en หรือ bilingual และล้างข้อความหลุดก่อนบันทึก", meta: "Bilingual default" },
-    { icon: ShieldCheck, title: "Roles & approvals", text: "แยกสิทธิ์ Viewer, Editor, Approver และ Admin", meta: "Access review required" },
-    { icon: Settings, title: "Integrations", text: "เชื่อม Cloudflare และ Social secrets ผ่าน Environment เท่านั้น", meta: "No secrets exposed" },
-  ],
-};
+type NavItem = { id: NavId; label: string; icon: LucideIcon };
 
-function LogoMark() {
-  return (
-    <div className="relative grid size-11 place-items-center rounded-2xl bg-[linear-gradient(145deg,#ff5b62,#c9232c)] text-sm font-black tracking-[-0.08em] text-white shadow-[0_10px_30px_rgba(232,55,65,.3)]">
-      ARS
-      <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-[#101b2d] bg-[#56d6aa]" />
-    </div>
-  );
+const navItems: NavItem[] = [
+  { id: "dashboard", label: "Home", icon: Home },
+  { id: "discovery", label: "News Inbox", icon: Inbox },
+  { id: "favorites", label: "Favorites", icon: Star },
+  { id: "sources", label: "RSS Sources", icon: RadioTower },
+  { id: "articles", label: "Article Editor", icon: FileText },
+  { id: "publishing", label: "Telegram", icon: MessageCircle },
+  { id: "settings", label: "Settings", icon: Settings },
+];
+
+function formatDate(value: string | null, fallback: string) {
+  const date = new Date(value || fallback);
+  if (Number.isNaN(date.getTime())) return "ไม่ระบุเวลา";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
 }
 
-function NavButton({ item, active, onSelect }: { item: NavItem; active: boolean; onSelect: (id: NavId) => void }) {
-  const Icon = item.icon;
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(item.id)}
-      className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-all ${
-        active
-          ? "bg-white/[.09] font-semibold text-white shadow-[inset_3px_0_0_#ef4b55]"
-          : "text-slate-400 hover:bg-white/[.05] hover:text-white"
-      }`}
-      aria-current={active ? "page" : undefined}
-    >
-      <Icon className={`size-[18px] ${active ? "text-[#ff646d]" : "text-slate-500 group-hover:text-slate-300"}`} />
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      {item.badge ? (
-        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-[#ef4b55] text-white" : "bg-white/[.08] text-slate-400"}`}>
-          {item.badge}
-        </span>
-      ) : null}
-    </button>
-  );
+function sourceInitial(name: string) {
+  return name.trim().slice(0, 2).toUpperCase() || "RSS";
 }
 
-function Sidebar({ active, mobileOpen, onSelect, onClose }: { active: NavId; mobileOpen: boolean; onSelect: (id: NavId) => void; onClose: () => void }) {
+function Sidebar({ active, open, onSelect, onClose }: { active: NavId; open: boolean; onSelect: (id: NavId) => void; onClose: () => void }) {
   return (
     <>
-      <button
-        type="button"
-        aria-label="ปิดเมนู"
-        onClick={onClose}
-        className={`fixed inset-0 z-40 bg-[#07101e]/70 backdrop-blur-sm transition-opacity lg:hidden ${mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      />
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#101b2d] px-4 py-5 text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="mb-7 flex items-center gap-3 px-1">
-          <LogoMark />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-extrabold tracking-tight">GunNer</span>
-              <span className="rounded bg-[#ef4b55]/15 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[.14em] text-[#ff747c]">Beta</span>
-            </div>
-            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[.16em] text-slate-500">Newsroom intelligence</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="ปิดเมนู" className="grid size-9 place-items-center rounded-lg text-slate-400 hover:bg-white/5 hover:text-white lg:hidden">
-            <X className="size-5" />
-          </button>
+      <button type="button" aria-label="ปิดเมนู" onClick={onClose} className={`fixed inset-0 z-40 bg-black/65 lg:hidden ${open ? "block" : "hidden"}`} />
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[184px] flex-col border-r border-white/10 bg-[#0b0714] text-white shadow-2xl transition-transform lg:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-16 items-center justify-between border-b border-white/10 px-4">
+          <div><p className="text-sm font-black tracking-tight">ARS GunNer</p><p className="text-[8px] font-bold uppercase tracking-[.2em] text-[#8c7aa5]">News intelligence</p></div>
+          <button type="button" onClick={onClose} aria-label="ปิดเมนู" className="text-[#9485a7] lg:hidden"><X className="size-5" /></button>
         </div>
-
-        <nav aria-label="Main navigation" className="flex-1 overflow-y-auto pr-1">
-          <p className="px-3 pb-2 text-[9px] font-bold uppercase tracking-[.2em] text-slate-600">Monitor</p>
-          <div className="space-y-1">
-            {primaryNav.map((item) => <NavButton key={item.id} item={item} active={active === item.id} onSelect={onSelect} />)}
-          </div>
-          <p className="mt-7 px-3 pb-2 text-[9px] font-bold uppercase tracking-[.2em] text-slate-600">Editorial workflow</p>
-          <div className="space-y-1">
-            {workflowNav.map((item) => <NavButton key={item.id} item={item} active={active === item.id} onSelect={onSelect} />)}
-          </div>
+        <nav className="flex-1 space-y-1 p-2.5" aria-label="เมนูหลัก">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const selected = active === item.id || (item.id === "discovery" && active === "dashboard");
+            return (
+              <button key={item.id} type="button" onClick={() => onSelect(item.id)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[11px] font-bold transition ${selected ? "bg-[#f5f2f8] text-[#21142f]" : "text-[#b1a5bf] hover:bg-white/[.06] hover:text-white"}`}>
+                <Icon className="size-4" />{item.label}
+              </button>
+            );
+          })}
         </nav>
-
-        <div className="mt-4 border-t border-white/[.07] pt-4">
-          <NavButton item={{ id: "settings", label: "Settings", labelTh: "ตั้งค่า", icon: Settings }} active={active === "settings"} onSelect={onSelect} />
-          <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white/[.04] p-3">
-            <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#263957] text-xs font-bold text-white">ED</div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-white">Demo Editor</p>
-              <p className="truncate text-[10px] text-slate-500">Approver workspace</p>
-            </div>
-            <MoreHorizontal className="size-4 text-slate-500" />
-          </div>
+        <div className="border-t border-white/10 p-3">
+          <div className="flex items-center gap-2 rounded-lg bg-white/[.05] p-2.5"><div className="grid size-8 place-items-center rounded-md bg-[#3f2757] text-[10px] font-black">ED</div><div><p className="text-[10px] font-bold">Editor</p><p className="text-[8px] text-[#81738f]">Approver</p></div></div>
         </div>
       </aside>
     </>
   );
 }
 
-function StatCard({ item }: { item: StatItem }) {
-  const Icon = item.icon;
+function NewsRow({ item, selected, onSelect }: { item: FeedItem; selected: boolean; onSelect: () => void }) {
   return (
-    <article className="rounded-[20px] border border-[#e7e4de] bg-white p-4 shadow-[0_8px_26px_rgba(36,45,64,.04)] transition-transform hover:-translate-y-0.5">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[.1em] text-[#8c929f]">{item.label}</p>
-          <div className="mt-2 flex items-end gap-2">
-            <strong className="text-[28px] font-extrabold leading-none tracking-[-.04em] text-[#172033]">{item.value}</strong>
-            <span className={`stat-change stat-change--${item.tone}`}>{item.change}</span>
+    <article className={`group relative overflow-hidden border-l-4 transition ${selected ? "border-[#54d4be] bg-[#3a2450] shadow-[0_0_0_1px_rgba(84,212,190,.42),0_15px_35px_rgba(0,0,0,.25)]" : "border-[#2b9e91] bg-[#251733] hover:bg-[#2c1b3d]"}`}>
+      <button type="button" onClick={onSelect} aria-pressed={selected} aria-label={`${selected ? "ยกเลิกเลือก" : "เลือก"} ${item.headline}`} className="flex w-full items-stretch text-left">
+        <div className={`grid w-28 shrink-0 place-items-center sm:w-32 ${selected ? "bg-[#d8fff1]" : "bg-[#e5f5bc]"}`}>
+          <div className="grid size-14 place-items-center rounded-full border border-black/10 bg-white/70 text-sm font-black text-[#3c4e4a] shadow-inner">{sourceInitial(item.sourceName)}</div>
+        </div>
+        <div className="min-w-0 flex-1 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 text-[8px] font-bold uppercase tracking-[.08em] text-[#a89bb7]">
+            <span>{item.sourceName}</span><span>·</span><span>{formatDate(item.publishedAt, item.importedAt)}</span>
+            <span className="ml-auto rounded bg-[#168f82]/35 px-2 py-0.5 text-[#72e2d1]">{item.category}</span>
           </div>
+          <h2 className="mt-2 line-clamp-2 text-[13px] font-extrabold leading-5 text-white">{item.headline}</h2>
+          <p className="mt-1 line-clamp-1 text-[10px] text-[#b8adc4]">{item.summary || "RSS รายการนี้มีเฉพาะพาดหัวข่าว"}</p>
+          <div className="mt-2 flex items-center gap-3 text-[9px] text-[#8f829c]"><span>{item.reporter || "ไม่ระบุ Reporter"}</span><span>Weight {item.reliabilityWeight}</span></div>
         </div>
-        <div className={`stat-icon stat-icon--${item.tone}`}><Icon className="size-[18px]" /></div>
-      </div>
-    </article>
-  );
-}
-
-function FeedCard({ cluster, onOpen, selected, onToggle }: { cluster: FeedCluster; onOpen: () => void; selected: boolean; onToggle: () => void }) {
-  const timestamp = cluster.publishedAt || cluster.importedAt;
-  const displayTime = timestamp
-    ? new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(new Date(timestamp))
-    : "ไม่ระบุเวลา";
-  return (
-    <article className={`group rounded-2xl border p-4 transition-all hover:shadow-[0_12px_30px_rgba(30,42,63,.06)] ${selected ? "border-[#ef4b55] bg-[#fff7f7] ring-2 ring-[#ef4b55]/10" : "border-[#ebe8e2] bg-[#fffefa] hover:border-[#dfd9cf]"}`}>
-      <div className="flex items-start gap-3">
-        <button type="button" role="checkbox" aria-checked={selected} onClick={onToggle} aria-label={`${selected ? "ยกเลิกเลือก" : "เลือก"} ${cluster.headline}`} className={`mt-1 grid size-7 shrink-0 place-items-center rounded-lg border transition-colors ${selected ? "border-[#ef4b55] bg-[#ef4b55] text-white" : "border-[#d9d5ce] bg-white text-transparent hover:border-[#ef4b55]"}`}><Check className="size-4" /></button>
-        <div className={`mt-1 grid size-9 shrink-0 place-items-center rounded-xl ${cluster.category === "Transfer" ? "bg-[#fff0f1] text-[#e23d47]" : cluster.category === "Club" ? "bg-[#eef4ff] text-[#3f6fc7]" : "bg-[#f0ecff] text-[#7254c5]"}`}>
-          {cluster.category === "Transfer" ? <TrendingUp className="size-[17px]" /> : cluster.category === "Club" ? <ShieldCheck className="size-[17px]" /> : <Globe2 className="size-[17px]" />}
+        <div className="grid w-12 place-items-center border-l border-white/[.05] text-[#9686a6]">
+          {selected ? <Check className="size-5 text-[#64e1cf]" /> : <ChevronRight className="size-5 transition-transform group-hover:translate-x-1" />}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className="rounded-md bg-[#f0eee8] px-2 py-1 text-[9px] font-bold uppercase tracking-[.12em] text-[#6e7480]">{cluster.category}</span>
-            <span className="rounded-md bg-[#eaf9f2] px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] text-[#228464]">RSS · LIVE</span>
-            <span className="text-[10px] text-[#a1a5ad]">{displayTime}</span>
-          </div>
-          <button type="button" onClick={onOpen} className="text-left text-[14px] font-bold leading-6 text-[#20283a] transition-colors hover:text-[#d7333e]">
-            {cluster.headline}
-          </button>
-          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#777d88]">{cluster.summary || "RSS รายการนี้มีเฉพาะพาดหัวข่าว กรุณาเปิดต้นฉบับเพื่อตรวจรายละเอียด"}</p>
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-medium text-[#868c97]">
-            <span className="flex items-center gap-1.5"><Globe2 className="size-3.5" /> {cluster.sourceName}</span>
-            <span className="flex items-center gap-1.5"><UserCheck className="size-3.5" /> {cluster.reporter || "ไม่ระบุ Reporter"}</span>
-            <span className="ml-auto flex items-center gap-1 rounded-full bg-[#eef4ff] px-2 py-1 font-bold text-[#3f6fc7]"><RadioTower className="size-3" />Weight {cluster.reliabilityWeight}</span>
-          </div>
-        </div>
-        <button type="button" onClick={onOpen} aria-label={`เปิด ${cluster.headline}`} className="grid size-8 shrink-0 place-items-center rounded-lg text-[#a5a9b1] transition-colors hover:bg-[#f1eee8] hover:text-[#252d3d]">
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function ReadinessCard({ onReview }: { onReview: () => void }) {
-  return (
-    <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.05)]">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Article readiness</p>
-          <h2 className="mt-1 text-base font-extrabold text-[#1b2436]">พร้อมเผยแพร่</h2>
-        </div>
-        <button type="button" onClick={onReview} aria-label="เปิดบทความ" className="grid size-9 place-items-center rounded-xl border border-[#ebe8e2] text-[#8a909b] hover:bg-[#f6f3ed] hover:text-[#273044]"><ArrowUpRight className="size-4" /></button>
-      </div>
-      <div className="mt-5 flex items-center gap-5">
-        <div className="readiness-ring" aria-label="Readiness score 88 out of 100">
-          <div><strong>88</strong><span>/100</span></div>
-        </div>
-        <div className="min-w-0 flex-1 space-y-3">
-          {[
-            ["Sources", "100%"],
-            ["Facts", "92%"],
-            ["Language", "85%"],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <div className="mb-1 flex justify-between text-[10px] font-semibold text-[#767c87]"><span>{label}</span><span>{value}</span></div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-[#efede8]"><div className="h-full rounded-full bg-[linear-gradient(90deg,#e53c47,#ff737b)]" style={{ width: value }} /></div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="mt-5 flex items-center gap-2 rounded-xl bg-[#effaf5] px-3 py-2.5 text-[10px] font-semibold text-[#27795f]">
-        <CircleCheck className="size-4" /> ผ่านเกณฑ์ 85 คะแนน · รอ Approver
-      </div>
-    </article>
-  );
-}
-
-function PublishingCard({ onOpen }: { onOpen: () => void }) {
-  const channels = [
-    { label: "Facebook", icon: Share2, time: "14:30", status: "Queued", color: "#376fd0" },
-    { label: "X", icon: AtSign, time: "15:00", status: "Review", color: "#172033" },
-    { label: "Telegram", icon: MessageCircle, time: "16:15", status: "Scheduled", color: "#2c98d8" },
-  ];
-  return (
-    <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.05)]">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Publishing queue</p>
-          <h2 className="mt-1 text-base font-extrabold text-[#1b2436]">ส่งวันนี้</h2>
-        </div>
-        <span className="rounded-full bg-[#fff0f1] px-2.5 py-1 text-[9px] font-bold text-[#d83943]">3 items</span>
-      </div>
-      <div className="mt-4 space-y-2">
-        {channels.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button type="button" key={item.label} onClick={onOpen} className="flex w-full items-center gap-3 rounded-xl border border-transparent px-2 py-2 text-left hover:border-[#ebe8e2] hover:bg-[#faf8f4]">
-              <div className="grid size-9 place-items-center rounded-xl bg-[#f4f2ed]" style={{ color: item.color }}><Icon className="size-4" /></div>
-              <div className="min-w-0 flex-1"><p className="text-xs font-bold text-[#283143]">{item.label}</p><p className="text-[10px] text-[#9297a0]">{item.status}</p></div>
-              <span className="font-mono text-[11px] font-bold text-[#545c69]">{item.time}</span>
-            </button>
-          );
-        })}
-      </div>
-      <button type="button" onClick={onOpen} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#4b5360] hover:bg-[#f7f4ee]">
-        Review queue <ArrowRight className="size-3.5" />
       </button>
     </article>
   );
 }
 
-function WorkspacePanel({ section, onAction }: { section: Exclude<NavId, "dashboard" | "discovery">; onAction: (message: string) => void }) {
+function SuggestionsPanel({ suggestions, onFollow }: { suggestions: Suggestion[]; onFollow: (item: Suggestion) => void }) {
   return (
-    <section className="grid gap-4 md:grid-cols-3">
-      {workspaceCards[section].map((item, index) => {
-        const Icon = item.icon;
-        return (
-          <article key={item.title} className="group rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
-            <div className="flex items-start justify-between">
-              <div className={`grid size-11 place-items-center rounded-2xl ${index === 0 ? "bg-[#fff0f1] text-[#dc3e48]" : index === 1 ? "bg-[#eef4ff] text-[#3e6cc2]" : "bg-[#edf9f4] text-[#238465]"}`}><Icon className="size-5" /></div>
-              <span className="rounded-full bg-[#f4f1eb] px-2.5 py-1 text-[9px] font-bold text-[#777d88]">Demo</span>
-            </div>
-            <h2 className="mt-5 text-base font-extrabold text-[#1c2537]">{item.title}</h2>
-            <p className="mt-2 min-h-12 text-xs leading-5 text-[#777d88]">{item.text}</p>
-            <div className="mt-5 flex items-center justify-between border-t border-[#eeeae4] pt-4">
-              <span className="text-[10px] font-semibold text-[#8e939c]">{item.meta}</span>
-              <button type="button" onClick={() => onAction(`${item.title}: เปิดมุมมองตัวอย่างแล้ว`)} className="grid size-8 place-items-center rounded-lg text-[#9a9fa8] hover:bg-[#f1eee8] hover:text-[#273044]" aria-label={`เปิด ${item.title}`}><ArrowUpRight className="size-4" /></button>
-            </div>
-          </article>
-        );
-      })}
-      <article className="md:col-span-3 rounded-[22px] border border-dashed border-[#d9d4cc] bg-[#f4f1eb]/60 p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-bold text-[#374052]">Phase 1 workspace</p>
-            <p className="mt-1 text-[11px] leading-5 text-[#7b818b]">โครงข้อมูลและหน้าจอพร้อมแล้ว การเชื่อม RSS, Workers AI และ Social API จริงจะเปิดหลังเพิ่ม Environment secrets</p>
+    <aside className="rounded-lg border border-white/10 bg-[#21142f]/95 p-4 shadow-xl">
+      <div className="flex items-start justify-between"><div><p className="text-[9px] font-black uppercase tracking-[.14em] text-[#8a78a0]">Daily discovery</p><h2 className="mt-1 text-xs font-extrabold text-white">Reporter & สำนักข่าว</h2></div><UserCheck className="size-4 text-[#61d9c8]" /></div>
+      <div className="relative mt-4"><Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#776987]" /><input aria-label="ค้นหารายการแนะนำ" placeholder="Search" className="h-9 w-full rounded border border-white/10 bg-[#392449] pl-9 pr-3 text-[10px] text-white placeholder:text-[#796b87]" /></div>
+      <div className="mt-3 max-h-[620px] space-y-1 overflow-y-auto pr-1">
+        {suggestions.length ? suggestions.map((item) => (
+          <div key={`${item.kind}-${item.value}`} className="flex items-center gap-2 rounded-md px-2 py-2 hover:bg-white/[.05]">
+            <div className={`grid size-8 shrink-0 place-items-center rounded ${item.kind === "reporter" ? "bg-[#174f4b] text-[#75e1d2]" : "bg-[#4c2d63] text-[#d1b5e5]"}`}>{item.kind === "reporter" ? <CircleUserRound className="size-4" /> : <Globe2 className="size-4" />}</div>
+            <div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold text-white">{item.label}</p><p className="text-[8px] text-[#8f819e]">{item.article_count} reports · score {item.score}</p></div>
+            <button type="button" onClick={() => onFollow(item)} aria-label={`เพิ่ม ${item.label} ใน Favorites`} className="grid size-7 place-items-center rounded border border-[#766287] text-[#bda9cc] hover:border-[#62dac9] hover:text-[#62dac9]"><Plus className="size-3.5" /></button>
           </div>
-          <button type="button" onClick={() => onAction("บันทึกการตั้งค่าตัวอย่างแล้ว")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#18243a] px-4 py-2.5 text-[11px] font-bold text-white hover:bg-[#22314d]">
-            <Check className="size-4" /> Save demo settings
-          </button>
-        </div>
-      </article>
-    </section>
+        )) : <p className="py-8 text-center text-[10px] leading-5 text-[#8f819e]">ยังไม่มีรายการแนะนำ<br />Sync RSS เพิ่มเพื่อวิเคราะห์รายวัน</p>}
+      </div>
+    </aside>
   );
 }
 
 export default function NewsroomDashboard() {
-  const [active, setActive] = useState<NavId>("dashboard");
+  const [active, setActive] = useState<NavId>("discovery");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [feedFilter, setFeedFilter] = useState<"All" | FeedCluster["category"]>("All");
-  const [unread, setUnread] = useState(true);
+  const [items, setItems] = useState<FeedItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [syncing, setSyncing] = useState(false);
-  const [loadingFeed, setLoadingFeed] = useState(true);
-  const [feedError, setFeedError] = useState("");
-  const [clusters, setClusters] = useState<FeedCluster[]>([]);
-  const [feedTotal, setFeedTotal] = useState(0);
-  const [toast, setToast] = useState("");
-  const [selectedClusterIds, setSelectedClusterIds] = useState<number[]>([]);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<Category>("All");
+  const [selectedFeedItemId, setSelectedFeedItemId] = useState<number | null>(null);
   const [autoDraft, setAutoDraft] = useState<AutoDraftRequest | null>(null);
-
-  const current = sectionCopy[active];
-  const dashboardStats = useMemo<StatItem[]>(() => {
-    const sourceCount = new Set(clusters.map((item) => item.sourceName)).size;
-    const reporterCount = new Set(clusters.map((item) => item.reporter).filter(Boolean)).size;
-    return [
-      { label: "RSS reports", value: String(feedTotal), change: `${clusters.length} loaded`, icon: Newspaper, tone: "blue" },
-      { label: "News sources", value: String(sourceCount), change: "From D1", icon: RadioTower, tone: "violet" },
-      { label: "Reporters", value: String(reporterCount), change: "Named in RSS", icon: UserCheck, tone: "green" },
-      { label: "Selected", value: String(selectedClusterIds.length), change: "Max 3", icon: CircleCheck, tone: "orange" },
-    ];
-  }, [clusters, feedTotal, selectedClusterIds.length]);
-  const visibleClusters = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return clusters.filter((item) => {
-      const matchesFilter = feedFilter === "All" || item.category === feedFilter;
-      const matchesQuery = !normalized || `${item.headline} ${item.summary}`.toLowerCase().includes(normalized);
-      return matchesFilter && matchesQuery;
-    });
-  }, [clusters, feedFilter, query]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timeout = window.setTimeout(() => setToast(""), 2600);
-    return () => window.clearTimeout(timeout);
-  }, [toast]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [toast, setToast] = useState("");
 
   const loadFeed = useCallback(async () => {
-    setLoadingFeed(true);
-    setFeedError("");
+    setLoading(true);
+    setError("");
     try {
-      const response = await fetch("/api/v1/feed?limit=60", { headers: { accept: "application/json" } });
+      const response = await fetch("/api/v1/feed?limit=80");
       const payload = await response.json() as { data?: { reports?: FeedApiReport[]; total?: number }; error?: { message?: string } };
-      if (!response.ok || !payload.data) {
-        setFeedError(payload.error?.message || "โหลดข่าวจริงจาก D1 ไม่สำเร็จ");
-        return;
-      }
+      if (!response.ok || !payload.data) throw new Error(payload.error?.message || "โหลดข่าวจาก D1 ไม่สำเร็จ");
       const reports = (payload.data.reports ?? []).map((item) => ({
         id: item.id,
         category: item.category,
@@ -498,174 +199,133 @@ export default function NewsroomDashboard() {
         importedAt: item.imported_at,
         url: item.url,
         reliabilityWeight: item.reliability_weight,
-      } satisfies FeedCluster));
-      setClusters(reports);
-      setFeedTotal(payload.data.total ?? reports.length);
-      setSelectedClusterIds((selected) => selected.filter((id) => reports.some((report) => report.id === id)));
-    } catch {
-      setFeedError("เชื่อมต่อ D1 Feed API ไม่สำเร็จ");
+      } satisfies FeedItem));
+      setItems(reports);
+      setTotal(payload.data.total ?? reports.length);
+      setSelectedFeedItemId((current) => reports.some((report) => report.id === current) ? current : null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "โหลดข่าวจาก D1 ไม่สำเร็จ");
     } finally {
-      setLoadingFeed(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => void loadFeed(), 0);
-    return () => window.clearTimeout(timeout);
+    const timer = window.setTimeout(() => void loadFeed(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadFeed]);
+
+  useEffect(() => {
+    let activeRequest = true;
+    fetch("/api/v1/suggestions")
+      .then(async (response) => {
+        const payload = await response.json() as { data?: { suggestions?: { reporters?: Suggestion[]; outlets?: Suggestion[] } } };
+        if (!activeRequest || !response.ok) return;
+        setSuggestions([...(payload.data?.suggestions?.reporters ?? []), ...(payload.data?.suggestions?.outlets ?? [])].slice(0, 18));
+      })
+      .catch(() => undefined);
+    return () => { activeRequest = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2800);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  const visibleItems = useMemo(() => {
+    const term = query.trim().toLocaleLowerCase("en-US");
+    return items.filter((item) => (category === "All" || item.category === category) && (!term || `${item.headline} ${item.summary} ${item.sourceName} ${item.reporter || ""}`.toLocaleLowerCase("en-US").includes(term)));
+  }, [category, items, query]);
+
+  const selectedItem = items.find((item) => item.id === selectedFeedItemId) ?? null;
 
   const navigate = (id: NavId) => {
     setActive(id);
     setMobileOpen(false);
-    window.history.replaceState(null, "", id === "dashboard" ? "/" : `/?view=${id}`);
+    window.history.replaceState(null, "", id === "discovery" ? "/" : `/?view=${id}`);
   };
 
   const syncFeeds = async () => {
     setSyncing(true);
     try {
-      const response = await fetch("/api/v1/rss/ingest", { method: "POST", headers: { accept: "application/json" } });
-      const payload = await response.json() as { data?: { sources_checked?: number; items_inserted?: number }; error?: { message?: string } };
-      if (!response.ok) {
-        setToast(payload.error?.message || "ซิงก์ RSS ไม่สำเร็จ");
-        return;
-      }
+      const response = await fetch("/api/v1/rss/ingest", { method: "POST" });
+      const payload = await response.json() as { data?: { items_inserted?: number }; error?: { message?: string } };
+      if (!response.ok) return setToast(payload.error?.message || "Sync RSS ไม่สำเร็จ");
       await loadFeed();
-      setToast(`ซิงก์ RSS แล้ว · ${payload.data?.sources_checked ?? 0} แหล่ง · เพิ่ม ${payload.data?.items_inserted ?? 0} ข่าว`);
+      setToast(`Sync สำเร็จ · เพิ่ม ${payload.data?.items_inserted ?? 0} ข่าว`);
     } catch {
-      setToast("เชื่อมต่อ RSS API ไม่สำเร็จ");
+      setToast("เชื่อมต่อ RSS ไม่สำเร็จ");
     } finally {
       setSyncing(false);
     }
   };
 
-  const toggleCluster = (clusterId: number) => {
-    setSelectedClusterIds((current) => {
-      if (current.includes(clusterId)) return current.filter((id) => id !== clusterId);
-      if (current.length >= 3) {
-        setToast("เลือกได้สูงสุด 3 ข่าวที่เกี่ยวข้องกัน");
-        return current;
-      }
-      return [...current, clusterId];
-    });
-  };
-
   const confirmSelection = () => {
-    const selected = clusters.filter((cluster) => selectedClusterIds.includes(cluster.id));
-    if (!selected.length) {
-      setToast("กรุณาเลือกข่าวอย่างน้อย 1 รายการก่อนกดยืนยัน");
-      return;
-    }
-    const topic = selected.map((cluster) => `${cluster.headline}. ${cluster.summary}`).join("\n");
+    if (!selectedItem) return setToast("เลือกข่าวตั้งต้นก่อนกดยืนยัน");
     setAutoDraft({
       id: Date.now(),
-      topic,
-      selectedHeadlines: selected.map((cluster) => cluster.headline),
-      selectedFeedItemIds: selected.map((cluster) => cluster.id),
+      topic: `${selectedItem.headline}. ${selectedItem.summary}`,
+      selectedHeadlines: [selectedItem.headline],
+      selectedFeedItemIds: [selectedItem.id],
     });
     navigate("articles");
   };
 
-  return (
-    <div className="min-h-screen bg-[#f3f0ea] text-[#1c2537]">
-      <Sidebar active={active} mobileOpen={mobileOpen} onSelect={navigate} onClose={() => setMobileOpen(false)} />
+  const followSuggestion = async (item: Suggestion) => {
+    const response = await fetch("/api/v1/favorites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind: item.kind, value: item.value, label: item.label }) });
+    if (!response.ok) return setToast("เพิ่ม Favorites ไม่สำเร็จ หรือมีรายการนี้แล้ว");
+    setSuggestions((current) => current.filter((suggestion) => !(suggestion.kind === item.kind && suggestion.value === item.value)));
+    setToast(`เพิ่ม ${item.label} ใน Favorites แล้ว`);
+  };
 
-      <main className="min-h-screen lg:pl-[260px]">
-        <header className="sticky top-0 z-30 border-b border-[#e3dfd8]/80 bg-[#f3f0ea]/90 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+  const inboxVisible = active === "dashboard" || active === "discovery";
+
+  return (
+    <div className="min-h-screen bg-[#12091f] text-white">
+      <Sidebar active={active} open={mobileOpen} onSelect={navigate} onClose={() => setMobileOpen(false)} />
+      <main className="min-h-screen lg:pl-[184px]">
+        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#170b26]/95 px-4 py-3 backdrop-blur-xl sm:px-6">
           <div className="mx-auto flex max-w-[1500px] items-center gap-3">
-            <button type="button" onClick={() => setMobileOpen(true)} aria-label="เปิดเมนู" className="grid size-10 place-items-center rounded-xl border border-[#ded9d1] bg-white text-[#495160] lg:hidden"><Menu className="size-5" /></button>
-            <div className="hidden min-w-0 sm:block">
-              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.12em] text-[#9a9da4]"><span>ARS GunNer</span><ChevronRight className="size-3" /><span className="text-[#555d6b]">{primaryNav.concat(workflowNav).find((item) => item.id === active)?.label ?? "Settings"}</span></div>
-            </div>
-            <div className="relative ml-auto w-full max-w-[300px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9da1aa]" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="ค้นหาข่าว" placeholder="Search stories, sources..." className="h-10 w-full rounded-xl border border-[#dedad3] bg-white/85 pl-9 pr-3 text-xs text-[#263044] outline-none transition focus:border-[#d9666d] focus:ring-4 focus:ring-[#ef4b55]/10" />
-            </div>
-            <button type="button" onClick={() => { setUnread(false); setToast("อ่านการแจ้งเตือนแล้ว"); }} aria-label="การแจ้งเตือน" className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-[#dedad3] bg-white text-[#667080] hover:text-[#202a3d]">
-              <Bell className="size-[18px]" />{unread ? <span className="absolute right-2 top-2 size-2 rounded-full border-2 border-white bg-[#ef4b55]" /> : null}
-            </button>
-            <button type="button" onClick={() => navigate("settings")} aria-label="เปิดโปรไฟล์และการตั้งค่า" className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#1a2840] text-[10px] font-extrabold text-white shadow-sm">ED</button>
+            <button type="button" onClick={() => setMobileOpen(true)} aria-label="เปิดเมนู" className="grid size-9 place-items-center rounded border border-white/10 text-[#c1b4cd] lg:hidden"><Menu className="size-4" /></button>
+            <ArrowLeft className="hidden size-4 text-[#71627f] sm:block" /><ArrowRight className="hidden size-4 text-[#71627f] sm:block" />
+            <div><p className="text-[9px] font-bold uppercase tracking-[.12em] text-[#8f7da1]">ARS GunNer</p><h1 className="text-sm font-black">{inboxVisible ? "NEWS INBOX" : navItems.find((item) => item.id === active)?.label}</h1></div>
+            <div className="relative ml-auto w-full max-w-sm"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#7e6c90]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search news, outlet, reporter..." className="h-10 w-full rounded-md border border-white/10 bg-[#2a1839] pl-10 pr-3 text-[11px] text-white placeholder:text-[#756681]" /></div>
+            <button type="button" onClick={() => void syncFeeds()} disabled={syncing} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-[#efeaf4] px-3 text-[10px] font-black text-[#251532] disabled:opacity-60"><RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} /><span className="hidden sm:inline">Sync RSS</span></button>
           </div>
         </header>
 
-        <div className="mx-auto max-w-[1500px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-10">
-          <section className="relative overflow-hidden rounded-[26px] bg-[#16243a] px-5 py-6 text-white shadow-[0_18px_55px_rgba(24,35,55,.14)] sm:px-7 sm:py-7">
-            <div className="pointer-events-none absolute -right-16 -top-28 size-72 rounded-full border-[45px] border-white/[.025]" />
-            <div className="pointer-events-none absolute bottom-[-90px] right-[20%] size-44 rounded-full bg-[#ef4b55]/10 blur-2xl" />
-            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[.22em] text-[#ff7b82]"><span className="size-1.5 rounded-full bg-[#ff646d] shadow-[0_0_0_4px_rgba(239,75,85,.12)]" />{current.eyebrow}</div>
-                <h1 className="text-2xl font-extrabold tracking-[-.03em] sm:text-[30px]">{current.title}</h1>
-                <p className="mt-2 max-w-2xl text-xs leading-6 text-slate-300 sm:text-[13px]">{current.description}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => void syncFeeds()} disabled={syncing} className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[.06] px-4 py-2.5 text-[11px] font-bold text-white hover:bg-white/10 disabled:cursor-wait disabled:opacity-70"><RefreshCw className={`size-4 ${syncing ? "animate-spin" : ""}`} />{syncing ? "Syncing..." : "Sync RSS"}</button>
-                <button type="button" onClick={() => { navigate("articles"); setToast("เปิด Article Pattern workspace แล้ว"); }} className="inline-flex items-center gap-2 rounded-xl bg-[#ef4b55] px-4 py-2.5 text-[11px] font-bold text-white shadow-[0_9px_22px_rgba(239,75,85,.25)] hover:bg-[#df3d48]"><Plus className="size-4" />Create article</button>
-              </div>
+        {inboxVisible ? (
+          <div className="mx-auto max-w-[1500px] px-4 pb-28 pt-4 sm:px-6">
+            <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-white/10 pb-3">
+              {(["All", "Transfer", "Club", "League"] as Category[]).map((item) => <button type="button" key={item} onClick={() => setCategory(item)} className={`rounded px-3 py-2 text-[10px] font-bold ${category === item ? "bg-[#f3eef6] text-[#251532]" : "text-[#9585a5] hover:bg-white/[.05] hover:text-white"}`}>{item === "All" ? `All News · ${total}` : item}</button>)}
             </div>
-          </section>
-
-          <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {dashboardStats.map((item) => <StatCard key={item.label} item={item} />)}
-          </div>
-
-          {active === "dashboard" || active === "discovery" ? (
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,.75fr)]">
-              <section className="rounded-[22px] border border-[#e7e4de] bg-white p-4 shadow-[0_10px_30px_rgba(31,41,58,.05)] sm:p-5">
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#ef4b55] shadow-[0_0_0_4px_rgba(239,75,85,.1)]" /><h2 className="text-base font-extrabold text-[#1b2436]">Live discovery feed</h2></div>
-                    <p className="mt-1 text-[10px] text-[#9a9fa8]">ข่าวจริงจาก RSS ใน D1 · เปิดต้นฉบับได้ทุกข่าว</p>
-                  </div>
-                  <div className="flex items-center gap-1 rounded-xl bg-[#f3f0ea] p-1">
-                    {(["All", "Transfer", "Club", "League"] as const).map((filter) => (
-                      <button type="button" key={filter} onClick={() => setFeedFilter(filter)} className={`rounded-lg px-2.5 py-1.5 text-[9px] font-bold transition ${feedFilter === filter ? "bg-white text-[#202a3c] shadow-sm" : "text-[#8a909b] hover:text-[#4e5664]"}`}>{filter}</button>
-                    ))}
-                    <button type="button" onClick={() => setToast("ตัวกรองขั้นสูงจะเชื่อมกับ Favorites ใน Phase ถัดไป")} aria-label="ตัวกรองขั้นสูง" className="grid size-7 place-items-center rounded-lg text-[#89909a] hover:bg-white"><SlidersHorizontal className="size-3.5" /></button>
-                  </div>
-                </div>
-                <div className="space-y-2.5">
-                  {loadingFeed ? (
-                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><RefreshCw className="mx-auto size-6 animate-spin text-[#ef4b55]" /><p className="mt-3 text-xs font-bold text-[#535b68]">กำลังโหลดข่าวจริงจาก D1...</p></div></div>
-                  ) : feedError ? (
-                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#e3b8ba] bg-[#fff8f8] text-center"><div><Database className="mx-auto size-6 text-[#d94a53]" /><p className="mt-3 text-xs font-bold text-[#535b68]">{feedError}</p><button type="button" onClick={() => void loadFeed()} className="mt-3 text-[10px] font-bold text-[#df3d48]">ลองโหลดอีกครั้ง</button></div></div>
-                  ) : visibleClusters.length ? visibleClusters.map((cluster) => <FeedCard key={cluster.id} cluster={cluster} selected={selectedClusterIds.includes(cluster.id)} onToggle={() => toggleCluster(cluster.id)} onOpen={() => window.open(cluster.url, "_blank", "noopener,noreferrer")} />) : (
-                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">{clusters.length ? "ไม่พบข่าวที่ตรงกับตัวกรอง" : "ยังไม่มีข่าวใน D1"}</p><p className="mt-1 text-[10px] text-[#8d929b]">{clusters.length ? "ลองเปลี่ยนคำค้นหรือหมวดข่าว" : "เพิ่มแหล่งข่าวแล้วกด Sync RSS"}</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
-                  )}
-                </div>
-                <div className="mt-4 rounded-2xl border border-[#e6e1d9] bg-[#f8f5ef] p-3 sm:flex sm:items-center sm:justify-between">
-                  <div><p className="text-[11px] font-extrabold text-[#273044]">เลือกข่าวที่เกี่ยวข้องกัน 1–3 รายการ</p><p className="mt-1 text-[9px] leading-4 text-[#848a94]">เมื่อกด “ยืนยัน” AI จะรวบรวมข้อมูล สร้างบทความ และเปิด Article Editor อัตโนมัติ</p></div>
-                  <button type="button" onClick={confirmSelection} disabled={!selectedClusterIds.length} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ef4b55] px-5 py-3 text-[11px] font-bold text-white shadow-[0_8px_20px_rgba(239,75,85,.2)] disabled:cursor-not-allowed disabled:opacity-40 sm:mt-0 sm:w-auto"><Check className="size-4" />ยืนยัน ({selectedClusterIds.length})</button>
-                </div>
-                <button type="button" onClick={() => void loadFeed()} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#535b69] hover:bg-[#f8f5ef]">Refresh real news <RefreshCw className="size-3.5" /></button>
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
+              <section className="min-w-0 space-y-2">
+                {loading ? <div className="grid min-h-80 place-items-center rounded-lg border border-white/10 bg-[#21142f]"><div className="text-center"><LoaderCircle className="mx-auto size-7 animate-spin text-[#60d7c6]" /><p className="mt-3 text-[11px] text-[#9e90aa]">กำลังโหลดข่าวจริงจาก D1</p></div></div> : error ? <div className="grid min-h-80 place-items-center rounded-lg border border-[#8e435e] bg-[#291526]"><div className="text-center"><p className="text-xs font-bold">{error}</p><button type="button" onClick={() => void loadFeed()} className="mt-3 rounded bg-white px-4 py-2 text-[10px] font-bold text-[#291526]">ลองใหม่</button></div></div> : visibleItems.length ? visibleItems.map((item) => <NewsRow key={item.id} item={item} selected={selectedFeedItemId === item.id} onSelect={() => setSelectedFeedItemId((current) => current === item.id ? null : item.id)} />) : <div className="grid min-h-80 place-items-center rounded-lg border border-dashed border-white/15 bg-[#21142f]"><div className="text-center"><Newspaper className="mx-auto size-7 text-[#786989]" /><p className="mt-3 text-xs font-bold">ยังไม่มีข่าวที่ตรงกับตัวกรอง</p><p className="mt-1 text-[10px] text-[#8d7f9a]">เพิ่ม RSS Source หรือกด Sync RSS</p></div></div>}
               </section>
-              <aside className="space-y-4">
-                <ReadinessCard onReview={() => navigate("articles")} />
-                <PublishingCard onOpen={() => navigate("publishing")} />
-              </aside>
+              <SuggestionsPanel suggestions={suggestions} onFollow={(item) => void followSuggestion(item)} />
             </div>
-          ) : active === "favorites" || active === "sources" || active === "fact-check" || active === "articles" || active === "publishing" ? (
-            <div className="mt-4"><EditorialWorkspace section={active} notify={setToast} autoDraft={autoDraft} onAutoDraftConsumed={() => setAutoDraft(null)} /></div>
-          ) : (
-            <div className="mt-4"><WorkspacePanel section={active} onAction={setToast} /></div>
-          )}
-
-          <footer className="mt-6 flex flex-col gap-2 border-t border-[#ddd8d0] pt-4 text-[9px] font-medium text-[#979ba3] sm:flex-row sm:items-center sm:justify-between">
-            <p>ARS GunNer v0.6.2 · Live D1 news → Confirm-to-Draft · Telegram delivery disabled by default</p>
-            <p className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#56bc91]" /> Cloudflare-ready architecture</p>
-          </footer>
-        </div>
+          </div>
+        ) : active === "settings" ? (
+          <div className="mx-auto max-w-4xl p-6"><div className="rounded-xl border border-white/10 bg-[#21142f] p-6"><Settings className="size-6 text-[#63dac8]" /><h2 className="mt-4 text-lg font-black">Workspace Settings</h2><p className="mt-2 text-xs leading-6 text-[#9e90aa]">ตั้งค่าภาษาเริ่มต้น บทบาท และ Environment secrets โดยไม่แสดง Token บนหน้าเว็บ</p></div></div>
+        ) : (
+          <div className="min-h-[calc(100vh-65px)] bg-[#f2eff5] p-4 text-[#1c2537] sm:p-6"><div className="mx-auto max-w-[1500px]"><EditorialWorkspace section={active} notify={setToast} autoDraft={autoDraft} onAutoDraftConsumed={() => setAutoDraft(null)} /></div></div>
+        )}
       </main>
 
-      <nav aria-label="Mobile navigation" className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 rounded-2xl border border-white/10 bg-[#111d30]/95 p-1.5 shadow-[0_16px_40px_rgba(10,18,31,.3)] backdrop-blur-xl lg:hidden">
-        {[primaryNav[0], primaryNav[1], workflowNav[1], workflowNav[2]].map((item) => {
-          const Icon = item.icon;
-          return <button type="button" key={item.id} onClick={() => navigate(item.id)} className={`flex flex-col items-center gap-1 rounded-xl py-2 text-[8px] font-bold ${active === item.id ? "bg-white/10 text-white" : "text-slate-500"}`}><Icon className={`size-4 ${active === item.id ? "text-[#ff646d]" : ""}`} />{item.label}</button>;
-        })}
-      </nav>
+      {inboxVisible && selectedItem ? (
+        <div className="fixed inset-x-3 bottom-3 z-40 lg:left-[196px]">
+          <div className="mx-auto flex max-w-[980px] items-center gap-3 rounded-lg border border-[#64ddca]/40 bg-[#20112f]/95 p-3 shadow-2xl backdrop-blur-xl">
+            <div className="grid size-10 shrink-0 place-items-center rounded bg-[#dffbef] text-xs font-black text-[#22483f]">{sourceInitial(selectedItem.sourceName)}</div>
+            <div className="min-w-0 flex-1"><p className="text-[8px] font-bold uppercase tracking-[.1em] text-[#68daca]">Selected source</p><p className="truncate text-[11px] font-bold text-white">{selectedItem.headline}</p></div>
+            <button type="button" onClick={() => window.open(selectedItem.url, "_blank", "noopener,noreferrer")} className="hidden rounded border border-white/15 px-3 py-2 text-[9px] font-bold text-[#b9adca] sm:block">เปิดต้นฉบับ</button>
+            <button type="button" onClick={confirmSelection} className="inline-flex items-center gap-2 rounded bg-[#69ddcb] px-5 py-3 text-[10px] font-black text-[#172a28]">ยืนยันและสร้าง Draft <BookOpenText className="size-4" /></button>
+          </div>
+        </div>
+      ) : null}
 
-      <div role="status" aria-live="polite" className={`fixed bottom-24 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl bg-[#17243a] px-4 py-3 text-[10px] font-semibold text-white shadow-2xl transition-all lg:bottom-7 ${toast ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"}`}>
-        <Sparkles className="size-4 text-[#ff737b]" />{toast}
-      </div>
+      <div role="status" aria-live="polite" className={`fixed right-5 top-20 z-[80] rounded-lg bg-[#f3eef6] px-4 py-3 text-[10px] font-bold text-[#291736] shadow-2xl transition ${toast ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-2 opacity-0"}`}>{toast}</div>
     </div>
   );
 }

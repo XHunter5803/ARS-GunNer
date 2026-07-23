@@ -1,4 +1,4 @@
-# ARS GunNer v0.6.2 — Live RSS Confirm-to-Draft
+# ARS GunNer v0.7.0 — News Inbox Workflow
 
 1. Close the running development server.
 2. Extract this ZIP.

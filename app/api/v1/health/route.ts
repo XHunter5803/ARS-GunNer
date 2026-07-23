@@ -6,7 +6,7 @@ export async function GET() {
       data: {
         status: "ok",
         service: "ARS GunNer API",
-        version: "0.6.2",
+        version: "0.7.0",
       },
       requestId,
     },

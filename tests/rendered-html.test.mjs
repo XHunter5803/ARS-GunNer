@@ -45,22 +45,22 @@ test("renders the ARS GunNer newsroom shell for live D1 news", async () => {
   const html = await response.text();
 
   assert.equal(response.status, 200);
-  assert.match(html, /Newsroom intelligence/i);
-  assert.match(html, /Live discovery feed/i);
-  assert.match(html, /ข่าวจริงจาก RSS ใน D1/i);
-  assert.match(html, /Article readiness/i);
+  assert.match(html, /ARS GunNer/i);
+  assert.match(html, /NEWS INBOX/i);
+  assert.match(html, /All News/i);
+  assert.match(html, /Reporter &amp; สำนักข่าว/i);
 });
 
 test("ships the semantic Draft workflow and daily discovery controls", async () => {
   const source = await readFile(new URL("../app/editorial-workspaces.tsx", import.meta.url), "utf8");
   const dashboard = await readFile(new URL("../app/newsroom-dashboard.tsx", import.meta.url), "utf8");
-  assert.match(source, /Research & Build Draft/i);
-  assert.match(source, /Semantic research/i);
+  assert.match(source, /Article Editor/i);
+  assert.doesNotMatch(source, /Research & Build Draft/i);
   assert.match(source, /Daily discovery/i);
   assert.match(source, /Keep in Favorites/i);
-  assert.match(dashboard, /ยืนยัน \(\{selectedClusterIds\.length\}\)/);
+  assert.match(dashboard, /ยืนยันและสร้าง Draft/i);
   assert.match(source, /กำลังสร้างบทความอัตโนมัติ/);
-  assert.match(dashboard, /\/api\/v1\/feed\?limit=60/);
+  assert.match(dashboard, /\/api\/v1\/feed\?limit=80/);
   assert.match(dashboard, /selectedFeedItemIds/);
 });
 
@@ -76,7 +76,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.6.2");
+  assert.equal(payload.data.version, "0.7.0");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });
