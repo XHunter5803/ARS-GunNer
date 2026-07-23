@@ -44,6 +44,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import EditorialWorkspace from "./editorial-workspaces";
+import type { AutoDraftRequest } from "./editorial-workspaces";
 
 type NavId =
   | "dashboard"
@@ -321,10 +322,11 @@ function StatCard({ item }: { item: (typeof stats)[number] }) {
   );
 }
 
-function FeedCard({ cluster, onOpen }: { cluster: FeedCluster; onOpen: () => void }) {
+function FeedCard({ cluster, onOpen, selected, onToggle }: { cluster: FeedCluster; onOpen: () => void; selected: boolean; onToggle: () => void }) {
   return (
-    <article className="group rounded-2xl border border-[#ebe8e2] bg-[#fffefa] p-4 transition-all hover:border-[#dfd9cf] hover:shadow-[0_12px_30px_rgba(30,42,63,.06)]">
+    <article className={`group rounded-2xl border p-4 transition-all hover:shadow-[0_12px_30px_rgba(30,42,63,.06)] ${selected ? "border-[#ef4b55] bg-[#fff7f7] ring-2 ring-[#ef4b55]/10" : "border-[#ebe8e2] bg-[#fffefa] hover:border-[#dfd9cf]"}`}>
       <div className="flex items-start gap-3">
+        <button type="button" role="checkbox" aria-checked={selected} onClick={onToggle} aria-label={`${selected ? "ยกเลิกเลือก" : "เลือก"} ${cluster.headline}`} className={`mt-1 grid size-7 shrink-0 place-items-center rounded-lg border transition-colors ${selected ? "border-[#ef4b55] bg-[#ef4b55] text-white" : "border-[#d9d5ce] bg-white text-transparent hover:border-[#ef4b55]"}`}><Check className="size-4" /></button>
         <div className={`mt-1 grid size-9 shrink-0 place-items-center rounded-xl ${cluster.category === "Transfer" ? "bg-[#fff0f1] text-[#e23d47]" : cluster.category === "Club" ? "bg-[#eef4ff] text-[#3f6fc7]" : "bg-[#f0ecff] text-[#7254c5]"}`}>
           {cluster.category === "Transfer" ? <TrendingUp className="size-[17px]" /> : cluster.category === "Club" ? <ShieldCheck className="size-[17px]" /> : <Globe2 className="size-[17px]" />}
         </div>
@@ -466,6 +468,8 @@ export default function NewsroomDashboard() {
   const [unread, setUnread] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState("");
+  const [selectedClusterIds, setSelectedClusterIds] = useState<number[]>([]);
+  const [autoDraft, setAutoDraft] = useState<AutoDraftRequest | null>(null);
 
   const current = sectionCopy[active];
   const visibleClusters = useMemo(() => {
@@ -504,6 +508,28 @@ export default function NewsroomDashboard() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const toggleCluster = (clusterId: number) => {
+    setSelectedClusterIds((current) => {
+      if (current.includes(clusterId)) return current.filter((id) => id !== clusterId);
+      if (current.length >= 3) {
+        setToast("เลือกได้สูงสุด 3 ข่าวที่เกี่ยวข้องกัน");
+        return current;
+      }
+      return [...current, clusterId];
+    });
+  };
+
+  const confirmSelection = () => {
+    const selected = clusters.filter((cluster) => selectedClusterIds.includes(cluster.id));
+    if (!selected.length) {
+      setToast("กรุณาเลือกข่าวอย่างน้อย 1 รายการก่อนกดยืนยัน");
+      return;
+    }
+    const topic = selected.map((cluster) => `${cluster.headline}. ${cluster.summary}`).join("\n");
+    setAutoDraft({ id: Date.now(), topic, selectedHeadlines: selected.map((cluster) => cluster.headline) });
+    navigate("articles");
   };
 
   return (
@@ -565,9 +591,13 @@ export default function NewsroomDashboard() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  {visibleClusters.length ? visibleClusters.map((cluster) => <FeedCard key={cluster.id} cluster={cluster} onOpen={() => { navigate("fact-check"); setToast(`เปิด Cluster #${cluster.id} สำหรับตรวจสอบแล้ว`); }} />) : (
+                  {visibleClusters.length ? visibleClusters.map((cluster) => <FeedCard key={cluster.id} cluster={cluster} selected={selectedClusterIds.includes(cluster.id)} onToggle={() => toggleCluster(cluster.id)} onOpen={() => { navigate("fact-check"); setToast(`เปิด Cluster #${cluster.id} สำหรับตรวจสอบแล้ว`); }} />) : (
                     <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">ไม่พบข่าวตัวอย่าง</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
                   )}
+                </div>
+                <div className="mt-4 rounded-2xl border border-[#e6e1d9] bg-[#f8f5ef] p-3 sm:flex sm:items-center sm:justify-between">
+                  <div><p className="text-[11px] font-extrabold text-[#273044]">เลือกข่าวที่เกี่ยวข้องกัน 1–3 รายการ</p><p className="mt-1 text-[9px] leading-4 text-[#848a94]">เมื่อกด “ยืนยัน” AI จะรวบรวมข้อมูล สร้างบทความ และเปิด Article Editor อัตโนมัติ</p></div>
+                  <button type="button" onClick={confirmSelection} disabled={!selectedClusterIds.length} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ef4b55] px-5 py-3 text-[11px] font-bold text-white shadow-[0_8px_20px_rgba(239,75,85,.2)] disabled:cursor-not-allowed disabled:opacity-40 sm:mt-0 sm:w-auto"><Check className="size-4" />ยืนยัน ({selectedClusterIds.length})</button>
                 </div>
                 <button type="button" onClick={() => navigate("discovery")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#535b69] hover:bg-[#f8f5ef]">View all 36 clusters <ArrowRight className="size-3.5" /></button>
               </section>
@@ -577,13 +607,13 @@ export default function NewsroomDashboard() {
               </aside>
             </div>
           ) : active === "favorites" || active === "sources" || active === "fact-check" || active === "articles" || active === "publishing" ? (
-            <div className="mt-4"><EditorialWorkspace section={active} notify={setToast} /></div>
+            <div className="mt-4"><EditorialWorkspace section={active} notify={setToast} autoDraft={autoDraft} onAutoDraftConsumed={() => setAutoDraft(null)} /></div>
           ) : (
             <div className="mt-4"><WorkspacePanel section={active} onAction={setToast} /></div>
           )}
 
           <footer className="mt-6 flex flex-col gap-2 border-t border-[#ddd8d0] pt-4 text-[9px] font-medium text-[#979ba3] sm:flex-row sm:items-center sm:justify-between">
-            <p>ARS GunNer v0.6.0 · Semantic research · Telegram delivery disabled by default</p>
+            <p>ARS GunNer v0.6.1 · Confirm-to-Draft automation · Telegram delivery disabled by default</p>
             <p className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#56bc91]" /> Cloudflare-ready architecture</p>
           </footer>
         </div>

@@ -1,4 +1,4 @@
-# ARS GunNer v0.6.0 — Semantic Draft Update
+# ARS GunNer v0.6.1 — Confirm-to-Draft Automation
 
 1. Close the running development server.
 2. Extract this ZIP.
@@ -9,9 +9,9 @@
 
 No new D1 migration is required for this update.
 
-## New workflow
+## Automatic workflow
 
-Topic → semantic ranking of recent D1/RSS reports → sourced Research Brief → facts, claims, and conflicts → original perspective article → readiness validation → revision/review/approval.
+Select 1–3 related news items on Dashboard → click **ยืนยัน** → semantic ranking of recent D1/RSS reports → sourced Research Brief → facts, claims, and conflicts → original perspective article opens automatically in Article Editor → readiness validation → revision/review/approval.
 
 The AI may add original transitions and clearly marked analysis supported by the gathered evidence. It must not copy article sentences or invent facts, quotes, numbers, dates, people, or sources.
 

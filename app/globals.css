@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f1f4f6;
-  --foreground: #343a40;
-  --primary: #3f6ad8;
-  --success: #3ac47d;
+  --background: #f3f0ea;
+  --foreground: #1c2537;
+  --navy: #101b2d;
+  --red: #ef4b55;
 }
 
 @theme inline {
@@ -26,7 +26,9 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: var(--background);
+  background:
+    radial-gradient(circle at 84% 0%, rgba(255, 255, 255, 0.72), transparent 26rem),
+    var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), "Noto Sans Thai", "Leelawadee UI", Tahoma, Arial, sans-serif;
   text-rendering: optimizeLegibility;
@@ -51,12 +53,12 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid rgba(63, 106, 216, 0.78);
+  outline: 2px solid rgba(239, 75, 85, 0.78);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: rgba(63, 106, 216, 0.2);
+  background: rgba(239, 75, 85, 0.2);
   color: #141e30;
 }
 
@@ -112,7 +114,7 @@ textarea:focus-visible {
   width: 38px;
   height: 38px;
   place-items: center;
-  border-radius: 999px;
+  border-radius: 13px;
 }
 
 .stat-icon--blue {
@@ -143,34 +145,8 @@ textarea:focus-visible {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  background: conic-gradient(#3ac47d 0 88%, #e8ecf1 88% 100%);
-  box-shadow: 0 10px 25px rgba(58, 196, 125, 0.14);
-}
-
-.architect-nav-button--active {
-  background: #e9efff;
-  color: #3f6ad8;
-  box-shadow: inset 3px 0 0 #3f6ad8;
-}
-
-.architect-page-title {
-  background-image: linear-gradient(115deg, rgba(63, 106, 216, 0.025), rgba(58, 196, 125, 0.035));
-}
-
-.architect-stat-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.architect-stat-card::after {
-  position: absolute;
-  right: -22px;
-  bottom: -36px;
-  width: 80px;
-  height: 80px;
-  border-radius: 999px;
-  background: rgba(63, 106, 216, 0.025);
-  content: "";
+  background: conic-gradient(#ef4b55 0 88%, #eeeae4 88% 100%);
+  box-shadow: 0 10px 25px rgba(239, 75, 85, 0.12);
 }
 
 .readiness-ring::before {

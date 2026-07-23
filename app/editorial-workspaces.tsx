@@ -28,9 +28,15 @@ import {
   WandSparkles,
   XCircle,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type InteractiveSection = "favorites" | "sources" | "fact-check" | "articles" | "publishing";
+
+export type AutoDraftRequest = {
+  id: number;
+  topic: string;
+  selectedHeadlines: string[];
+};
 
 type Favorite = {
   id: number;
@@ -358,7 +364,7 @@ type ResearchBriefView = {
 
 type ResearchSourceView = { id: number; source_name: string; reporter: string | null; published_at: string | null; url: string; headline: string };
 
-function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
+function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: (message: string) => void; autoDraft?: AutoDraftRequest | null; onAutoDraftConsumed?: () => void }) {
   const [language, setLanguage] = useState<"th" | "en" | "bilingual">("th");
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState("ฟุตบอล");
@@ -375,6 +381,7 @@ function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
   const [articleId, setArticleId] = useState<number | null>(null);
   const [workflowStatus, setWorkflowStatus] = useState("waiting-research");
   const [working, setWorking] = useState(false);
+  const lastAutoDraftId = useRef<number | null>(null);
   const article = useMemo<ArticleDraft>(() => ({
     language,
     pattern: "perspective",
@@ -402,17 +409,19 @@ function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
     notify(`Readiness Score ${payload.data.readiness_score}/100`);
   };
 
-  const researchAndBuildDraft = async () => {
-    if (topic.trim().length < 2) return notify("กรอกหัวข้อหรือเหตุการณ์ที่ต้องการค้นหา");
+  const researchAndBuildDraft = useCallback(async (requestedTopic?: string) => {
+    const researchTopic = requestedTopic?.trim() || topic.trim();
+    if (researchTopic.length < 2) return notify("กรอกหัวข้อหรือเหตุการณ์ที่ต้องการค้นหา");
     const brandHashtags = hashtags.split(/\s+/).filter((item) => item.startsWith("#"));
     if (brandHashtags.length < 3) return notify("กรอก Hashtag อย่างน้อย 3 รายการ");
+    setTopic(researchTopic);
     setWorking(true);
     setWorkflowStatus("semantic-research");
     try {
       const response = await fetch("/api/v1/research/draft", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ keyword: topic, language, category, signature, brand_hashtags: brandHashtags }),
+        body: JSON.stringify({ keyword: researchTopic, language, category, signature, brand_hashtags: brandHashtags }),
       });
       const payload = await response.json() as { data?: { article?: ArticleDraft; validation?: ValidationResult; research?: ResearchBriefView; selected_sources?: ResearchSourceView[] }; error?: { message?: string; details?: string[] } };
       if (!response.ok || !payload.data?.article || !payload.data.research) {
@@ -438,7 +447,16 @@ function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
     } finally {
       setWorking(false);
     }
-  };
+  }, [category, hashtags, language, notify, signature, topic]);
+
+  useEffect(() => {
+    if (!autoDraft || lastAutoDraftId.current === autoDraft.id) return;
+    lastAutoDraftId.current = autoDraft.id;
+    onAutoDraftConsumed?.();
+    setWorkflowStatus("confirmed-selection");
+    notify(`ยืนยัน ${autoDraft.selectedHeadlines.length} ข่าวแล้ว · กำลังสร้างบทความอัตโนมัติ`);
+    void researchAndBuildDraft(autoDraft.topic);
+  }, [autoDraft, notify, onAutoDraftConsumed, researchAndBuildDraft]);
 
   const saveRevision = async () => {
     if (!evidence) return notify("กรุณา Research และสร้าง Draft ก่อนบันทึก");
@@ -618,10 +636,10 @@ function PublishingWorkspace({ notify }: { notify: (message: string) => void }) 
   );
 }
 
-export default function EditorialWorkspace({ section, notify }: { section: InteractiveSection; notify: (message: string) => void }) {
+export default function EditorialWorkspace({ section, notify, autoDraft, onAutoDraftConsumed }: { section: InteractiveSection; notify: (message: string) => void; autoDraft?: AutoDraftRequest | null; onAutoDraftConsumed?: () => void }) {
   if (section === "favorites") return <FavoritesWorkspace notify={notify} />;
   if (section === "sources") return <SourcesWorkspace notify={notify} />;
   if (section === "fact-check") return <FactCheckWorkspace notify={notify} />;
-  if (section === "articles") return <ArticleWorkspace notify={notify} />;
+  if (section === "articles") return <ArticleWorkspace notify={notify} autoDraft={autoDraft} onAutoDraftConsumed={onAutoDraftConsumed} />;
   return <PublishingWorkspace notify={notify} />;
 }

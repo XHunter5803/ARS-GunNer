@@ -2,13 +2,14 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.6.0 capabilities
+## Version 0.6.1 capabilities
 
 - Argon-inspired responsive newsroom dashboard
 - Favorites and source management backed by Cloudflare D1
 - Semantic topic research across recent RSS reports using meaning, people, events, decisions, and consequences instead of exact-word matching
 - AI Research Briefs that preserve source links, separate facts from claims, record conflicts, and feed an original Article Pattern draft
 - Daily reporter and news-outlet suggestions derived from the last 14 days of D1 coverage, with one-click saving to Favorites
+- Dashboard confirmation flow: select 1–3 related news clusters, click `ยืนยัน`, then AI automatically researches, writes, and opens the populated Article Editor
 - RSS/Atom parsing, canonical-link deduplication, event clustering, and Cron ingestion
 - Source ranking, confirmed-fact/report-claim separation, contradiction reporting, and readiness scoring
 - Thai, English, and bilingual Article Pattern generation with revision history and approval gates
@@ -117,7 +118,7 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.6.0 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.6.1 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 

@@ -20,16 +20,10 @@ export async function POST(request: Request) {
     if (!env.AI) return apiError(503, "AI_BINDING_UNAVAILABLE", "ยังไม่ได้ผูก Workers AI binding ชื่อ AI");
     const model = env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash";
     const result = await generatePerspectiveArticle(env.AI, model, input);
-    if (!result.validation.valid) {
+    if (!result.validation.valid || result.validation.readiness_score < 70) {
       return apiError(422, "ARTICLE_NOT_READY", "AI draft ไม่ผ่านกฎก่อนเผยแพร่", result.validation.readiness_notes);
     }
-    return apiJson({
-      ...result,
-      publication_gate: {
-        allowed: result.validation.readiness_score >= 70,
-        requires_review: result.validation.readiness_score < 70,
-      },
-    }, { status: 201 });
+    return apiJson(result, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "PAYLOAD_TOO_LARGE") return apiError(413, "PAYLOAD_TOO_LARGE", "ข้อมูลมีขนาดใหญ่เกินกำหนด");
