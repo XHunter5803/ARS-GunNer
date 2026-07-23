@@ -35,7 +35,7 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
-test("renders the ARS GunNer newsroom shell with demo disclosure", async () => {
+test("renders the ARS GunNer newsroom shell for live D1 news", async () => {
   const worker = await workerPromise;
   const response = await worker.fetch(
     new Request("http://localhost/", { headers: { accept: "text/html" } }),
@@ -47,7 +47,7 @@ test("renders the ARS GunNer newsroom shell with demo disclosure", async () => {
   assert.equal(response.status, 200);
   assert.match(html, /Newsroom intelligence/i);
   assert.match(html, /Live discovery feed/i);
-  assert.match(html, /Demo data/i);
+  assert.match(html, /ข่าวจริงจาก RSS ใน D1/i);
   assert.match(html, /Article readiness/i);
 });
 
@@ -60,6 +60,8 @@ test("ships the semantic Draft workflow and daily discovery controls", async () 
   assert.match(source, /Keep in Favorites/i);
   assert.match(dashboard, /ยืนยัน \(\{selectedClusterIds\.length\}\)/);
   assert.match(source, /กำลังสร้างบทความอัตโนมัติ/);
+  assert.match(dashboard, /\/api\/v1\/feed\?limit=60/);
+  assert.match(dashboard, /selectedFeedItemIds/);
 });
 
 test("health endpoint returns a structured service response", async () => {
@@ -74,7 +76,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.6.1");
+  assert.equal(payload.data.version, "0.6.2");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });

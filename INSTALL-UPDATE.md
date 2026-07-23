@@ -1,4 +1,4 @@
-# ARS GunNer v0.6.1 — Confirm-to-Draft Automation
+# ARS GunNer v0.6.2 — Live RSS Confirm-to-Draft
 
 1. Close the running development server.
 2. Extract this ZIP.

@@ -36,6 +36,7 @@ export type AutoDraftRequest = {
   id: number;
   topic: string;
   selectedHeadlines: string[];
+  selectedFeedItemIds: number[];
 };
 
 type Favorite = {
@@ -409,7 +410,7 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
     notify(`Readiness Score ${payload.data.readiness_score}/100`);
   };
 
-  const researchAndBuildDraft = useCallback(async (requestedTopic?: string) => {
+  const researchAndBuildDraft = useCallback(async (requestedTopic?: string, selectedFeedItemIds: number[] = []) => {
     const researchTopic = requestedTopic?.trim() || topic.trim();
     if (researchTopic.length < 2) return notify("กรอกหัวข้อหรือเหตุการณ์ที่ต้องการค้นหา");
     const brandHashtags = hashtags.split(/\s+/).filter((item) => item.startsWith("#"));
@@ -421,7 +422,14 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
       const response = await fetch("/api/v1/research/draft", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ keyword: researchTopic, language, category, signature, brand_hashtags: brandHashtags }),
+        body: JSON.stringify({
+          keyword: researchTopic,
+          selected_feed_item_ids: selectedFeedItemIds,
+          language,
+          category,
+          signature,
+          brand_hashtags: brandHashtags,
+        }),
       });
       const payload = await response.json() as { data?: { article?: ArticleDraft; validation?: ValidationResult; research?: ResearchBriefView; selected_sources?: ResearchSourceView[] }; error?: { message?: string; details?: string[] } };
       if (!response.ok || !payload.data?.article || !payload.data.research) {
@@ -455,7 +463,7 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
     onAutoDraftConsumed?.();
     setWorkflowStatus("confirmed-selection");
     notify(`ยืนยัน ${autoDraft.selectedHeadlines.length} ข่าวแล้ว · กำลังสร้างบทความอัตโนมัติ`);
-    void researchAndBuildDraft(autoDraft.topic);
+    void researchAndBuildDraft(autoDraft.topic, autoDraft.selectedFeedItemIds);
   }, [autoDraft, notify, onAutoDraftConsumed, researchAndBuildDraft]);
 
   const saveRevision = async () => {

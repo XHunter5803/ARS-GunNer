@@ -10,6 +10,7 @@ import type { NewsSourceInput, SourceType } from "../../../../../lib/news-pipeli
 
 type ResearchRequest = Pick<GeneratePerspectiveInput, "language" | "category" | "signature" | "brand_hashtags"> & {
   keyword: string;
+  selected_feed_item_ids?: number[];
 };
 
 type RuntimeBindings = {
@@ -30,6 +31,10 @@ export async function POST(request: Request) {
     if (!("th,en,bilingual".split(",") as string[]).includes(input.language)) return apiError(400, "VALIDATION_ERROR", "language ไม่ถูกต้อง");
     if (!input.category?.trim() || !input.signature?.trim()) return apiError(400, "VALIDATION_ERROR", "category และ signature ห้ามว่าง");
     if (!Array.isArray(input.brand_hashtags) || input.brand_hashtags.length < 3 || input.brand_hashtags.length > 8) return apiError(400, "VALIDATION_ERROR", "brand_hashtags ต้องมี 3–8 รายการ");
+    const anchorIds = [...new Set(input.selected_feed_item_ids ?? [])];
+    if (anchorIds.length > 3 || !anchorIds.every((id) => Number.isInteger(id) && id > 0)) {
+      return apiError(400, "VALIDATION_ERROR", "selected_feed_item_ids ต้องเป็นรหัสข่าวจริง 1–3 รายการ");
+    }
 
     const { env } = await import("cloudflare:workers") as unknown as { env: RuntimeBindings };
     if (!env.AI) return apiError(503, "AI_BINDING_UNAVAILABLE", "ยังไม่ได้ผูก Workers AI binding ชื่อ AI");
@@ -69,10 +74,13 @@ export async function POST(request: Request) {
       .filter((candidate) => candidate.headline.trim() && candidate.url.trim());
 
     if (candidates.length < 2) return apiError(422, "INSUFFICIENT_NEWS", "ยังมีข่าวใน D1 ไม่พอ กรุณา Sync RSS ก่อนค้นหา");
+    if (anchorIds.some((id) => !candidates.some((candidate) => candidate.id === id))) {
+      return apiError(404, "SELECTED_NEWS_NOT_FOUND", "ไม่พบข่าวที่เลือกใน D1 กรุณารีเฟรช Dashboard แล้วเลือกใหม่");
+    }
 
     const generationModel = env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash";
     const rerankerModel = env.WORKERS_AI_RERANKER_MODEL || "@cf/baai/bge-reranker-base";
-    const research = await buildSemanticResearchBrief({ ai: env.AI, generationModel, rerankerModel, keyword, candidates });
+    const research = await buildSemanticResearchBrief({ ai: env.AI, generationModel, rerankerModel, keyword, candidates, anchorIds });
     if (research.selected.length < 2) {
       return apiError(422, "INSUFFICIENT_RELATED_SOURCES", "AI พบแหล่งข่าวที่เกี่ยวข้องน้อยกว่า 2 แหล่ง จึงยังไม่สร้าง Draft เพื่อป้องกันข้อมูลไม่ครบ");
     }

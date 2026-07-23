@@ -15,7 +15,6 @@ import {
   FileText,
   Globe2,
   Languages,
-  Layers3,
   LayoutDashboard,
   ListChecks,
   Menu,
@@ -42,7 +41,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import EditorialWorkspace from "./editorial-workspaces";
 import type { AutoDraftRequest } from "./editorial-workspaces";
 
@@ -70,16 +69,34 @@ type FeedCluster = {
   category: "Transfer" | "Club" | "League";
   headline: string;
   summary: string;
-  sources: number;
-  reporters: number;
-  viral: number;
-  updated: string;
-  confidence: "High" | "Review";
+  sourceName: string;
+  sourceType: "official" | "original" | "reporter" | "outlet";
+  reporter: string | null;
+  publishedAt: string | null;
+  importedAt: string;
+  url: string;
+  reliabilityWeight: number;
 };
+
+type FeedApiReport = {
+  id: number;
+  category: FeedCluster["category"];
+  headline: string;
+  summary: string;
+  source_name: string;
+  source_type: FeedCluster["sourceType"];
+  reporter: string | null;
+  published_at: string | null;
+  imported_at: string;
+  url: string;
+  reliability_weight: number;
+};
+
+type StatItem = { label: string; value: string; change: string; icon: LucideIcon; tone: string };
 
 const primaryNav: NavItem[] = [
   { id: "dashboard", label: "Dashboard", labelTh: "ภาพรวม", icon: LayoutDashboard },
-  { id: "discovery", label: "Discovery", labelTh: "ค้นหาข่าว", icon: Radar, badge: "36" },
+  { id: "discovery", label: "Discovery", labelTh: "ค้นหาข่าว", icon: Radar },
   { id: "favorites", label: "Favorites", labelTh: "รายการติดตาม", icon: Star },
   { id: "sources", label: "Sources", labelTh: "แหล่งข่าว", icon: RadioTower },
 ];
@@ -138,49 +155,6 @@ const sectionCopy: Record<NavId, { eyebrow: string; title: string; description: 
     description: "จัดการค่าพื้นฐานอย่างปลอดภัย โดยไม่แสดง Secret ในหน้าจอหรือ Log",
   },
 };
-
-const clusters: FeedCluster[] = [
-  {
-    id: 1,
-    category: "Transfer",
-    headline: "Demo: Northbridge FC สำรวจทางเลือกกองหน้ารายใหม่ หลังแผนเดิมยังไม่ชัดเจน",
-    summary: "หลายรายงานพูดถึงเหตุการณ์เดียวกัน แต่ระดับข้อมูลยังอยู่ที่ “สนใจ” และต้องตรวจต้นทางเพิ่ม",
-    sources: 7,
-    reporters: 3,
-    viral: 92,
-    updated: "6 นาทีที่แล้ว",
-    confidence: "High",
-  },
-  {
-    id: 2,
-    category: "Club",
-    headline: "Demo: Harbor United ปรับโครงทีมงาน จึงอาจเปลี่ยนลำดับความสำคัญในตลาด",
-    summary: "ข้อมูลทางการยืนยันการเปลี่ยนบทบาทหนึ่งตำแหน่ง ส่วนผลต่อแผนซื้อขายยังเป็นการวิเคราะห์",
-    sources: 5,
-    reporters: 2,
-    viral: 78,
-    updated: "18 นาทีที่แล้ว",
-    confidence: "High",
-  },
-  {
-    id: 3,
-    category: "League",
-    headline: "Demo: กฎลงทะเบียนฉบับใหม่อาจทำให้หลายสโมสรต้องทบทวนขนาดทีม",
-    summary: "เอกสารร่างและรายงานจากสื่อให้รายละเอียดบางจุดไม่ตรงกัน จึงยังไม่ควรฟันธงผลกระทบ",
-    sources: 4,
-    reporters: 1,
-    viral: 64,
-    updated: "31 นาทีที่แล้ว",
-    confidence: "Review",
-  },
-];
-
-const stats: { label: string; value: string; change: string; icon: LucideIcon; tone: string }[] = [
-  { label: "Reports today", value: "128", change: "+18%", icon: Newspaper, tone: "blue" },
-  { label: "Event clusters", value: "36", change: "11 new", icon: Layers3, tone: "violet" },
-  { label: "Ready articles", value: "8", change: "Score ≥ 85", icon: CircleCheck, tone: "green" },
-  { label: "Publishing queue", value: "3", change: "Next 14:30", icon: Clock3, tone: "orange" },
-];
 
 const workspaceCards: Record<Exclude<NavId, "dashboard" | "discovery">, { icon: LucideIcon; title: string; text: string; meta: string }[]> = {
   favorites: [
@@ -304,7 +278,7 @@ function Sidebar({ active, mobileOpen, onSelect, onClose }: { active: NavId; mob
   );
 }
 
-function StatCard({ item }: { item: (typeof stats)[number] }) {
+function StatCard({ item }: { item: StatItem }) {
   const Icon = item.icon;
   return (
     <article className="rounded-[20px] border border-[#e7e4de] bg-white p-4 shadow-[0_8px_26px_rgba(36,45,64,.04)] transition-transform hover:-translate-y-0.5">
@@ -323,6 +297,10 @@ function StatCard({ item }: { item: (typeof stats)[number] }) {
 }
 
 function FeedCard({ cluster, onOpen, selected, onToggle }: { cluster: FeedCluster; onOpen: () => void; selected: boolean; onToggle: () => void }) {
+  const timestamp = cluster.publishedAt || cluster.importedAt;
+  const displayTime = timestamp
+    ? new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(new Date(timestamp))
+    : "ไม่ระบุเวลา";
   return (
     <article className={`group rounded-2xl border p-4 transition-all hover:shadow-[0_12px_30px_rgba(30,42,63,.06)] ${selected ? "border-[#ef4b55] bg-[#fff7f7] ring-2 ring-[#ef4b55]/10" : "border-[#ebe8e2] bg-[#fffefa] hover:border-[#dfd9cf]"}`}>
       <div className="flex items-start gap-3">
@@ -333,20 +311,17 @@ function FeedCard({ cluster, onOpen, selected, onToggle }: { cluster: FeedCluste
         <div className="min-w-0 flex-1">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <span className="rounded-md bg-[#f0eee8] px-2 py-1 text-[9px] font-bold uppercase tracking-[.12em] text-[#6e7480]">{cluster.category}</span>
-            <span className="rounded-md bg-[#fff4d8] px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] text-[#9a6d0e]">Demo data</span>
-            <span className="text-[10px] text-[#a1a5ad]">{cluster.updated}</span>
+            <span className="rounded-md bg-[#eaf9f2] px-2 py-1 text-[9px] font-bold uppercase tracking-[.1em] text-[#228464]">RSS · LIVE</span>
+            <span className="text-[10px] text-[#a1a5ad]">{displayTime}</span>
           </div>
           <button type="button" onClick={onOpen} className="text-left text-[14px] font-bold leading-6 text-[#20283a] transition-colors hover:text-[#d7333e]">
             {cluster.headline}
           </button>
-          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#777d88]">{cluster.summary}</p>
+          <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#777d88]">{cluster.summary || "RSS รายการนี้มีเฉพาะพาดหัวข่าว กรุณาเปิดต้นฉบับเพื่อตรวจรายละเอียด"}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[10px] font-medium text-[#868c97]">
-            <span className="flex items-center gap-1.5"><Globe2 className="size-3.5" /> {cluster.sources} sources</span>
-            <span className="flex items-center gap-1.5"><UserCheck className="size-3.5" /> {cluster.reporters} reporters</span>
-            <span className="flex items-center gap-1.5"><TrendingUp className="size-3.5 text-[#ef4b55]" /> Viral {cluster.viral}</span>
-            <span className={`ml-auto flex items-center gap-1 rounded-full px-2 py-1 font-bold ${cluster.confidence === "High" ? "bg-[#eaf9f2] text-[#228464]" : "bg-[#fff1e7] text-[#aa5e22]"}`}>
-              {cluster.confidence === "High" ? <Check className="size-3" /> : <Clock3 className="size-3" />}{cluster.confidence}
-            </span>
+            <span className="flex items-center gap-1.5"><Globe2 className="size-3.5" /> {cluster.sourceName}</span>
+            <span className="flex items-center gap-1.5"><UserCheck className="size-3.5" /> {cluster.reporter || "ไม่ระบุ Reporter"}</span>
+            <span className="ml-auto flex items-center gap-1 rounded-full bg-[#eef4ff] px-2 py-1 font-bold text-[#3f6fc7]"><RadioTower className="size-3" />Weight {cluster.reliabilityWeight}</span>
           </div>
         </div>
         <button type="button" onClick={onOpen} aria-label={`เปิด ${cluster.headline}`} className="grid size-8 shrink-0 place-items-center rounded-lg text-[#a5a9b1] transition-colors hover:bg-[#f1eee8] hover:text-[#252d3d]">
@@ -467,11 +442,25 @@ export default function NewsroomDashboard() {
   const [feedFilter, setFeedFilter] = useState<"All" | FeedCluster["category"]>("All");
   const [unread, setUnread] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [feedError, setFeedError] = useState("");
+  const [clusters, setClusters] = useState<FeedCluster[]>([]);
+  const [feedTotal, setFeedTotal] = useState(0);
   const [toast, setToast] = useState("");
   const [selectedClusterIds, setSelectedClusterIds] = useState<number[]>([]);
   const [autoDraft, setAutoDraft] = useState<AutoDraftRequest | null>(null);
 
   const current = sectionCopy[active];
+  const dashboardStats = useMemo<StatItem[]>(() => {
+    const sourceCount = new Set(clusters.map((item) => item.sourceName)).size;
+    const reporterCount = new Set(clusters.map((item) => item.reporter).filter(Boolean)).size;
+    return [
+      { label: "RSS reports", value: String(feedTotal), change: `${clusters.length} loaded`, icon: Newspaper, tone: "blue" },
+      { label: "News sources", value: String(sourceCount), change: "From D1", icon: RadioTower, tone: "violet" },
+      { label: "Reporters", value: String(reporterCount), change: "Named in RSS", icon: UserCheck, tone: "green" },
+      { label: "Selected", value: String(selectedClusterIds.length), change: "Max 3", icon: CircleCheck, tone: "orange" },
+    ];
+  }, [clusters, feedTotal, selectedClusterIds.length]);
   const visibleClusters = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return clusters.filter((item) => {
@@ -479,13 +468,51 @@ export default function NewsroomDashboard() {
       const matchesQuery = !normalized || `${item.headline} ${item.summary}`.toLowerCase().includes(normalized);
       return matchesFilter && matchesQuery;
     });
-  }, [feedFilter, query]);
+  }, [clusters, feedFilter, query]);
 
   useEffect(() => {
     if (!toast) return;
     const timeout = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  const loadFeed = useCallback(async () => {
+    setLoadingFeed(true);
+    setFeedError("");
+    try {
+      const response = await fetch("/api/v1/feed?limit=60", { headers: { accept: "application/json" } });
+      const payload = await response.json() as { data?: { reports?: FeedApiReport[]; total?: number }; error?: { message?: string } };
+      if (!response.ok || !payload.data) {
+        setFeedError(payload.error?.message || "โหลดข่าวจริงจาก D1 ไม่สำเร็จ");
+        return;
+      }
+      const reports = (payload.data.reports ?? []).map((item) => ({
+        id: item.id,
+        category: item.category,
+        headline: item.headline,
+        summary: item.summary,
+        sourceName: item.source_name,
+        sourceType: item.source_type,
+        reporter: item.reporter,
+        publishedAt: item.published_at,
+        importedAt: item.imported_at,
+        url: item.url,
+        reliabilityWeight: item.reliability_weight,
+      } satisfies FeedCluster));
+      setClusters(reports);
+      setFeedTotal(payload.data.total ?? reports.length);
+      setSelectedClusterIds((selected) => selected.filter((id) => reports.some((report) => report.id === id)));
+    } catch {
+      setFeedError("เชื่อมต่อ D1 Feed API ไม่สำเร็จ");
+    } finally {
+      setLoadingFeed(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadFeed(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [loadFeed]);
 
   const navigate = (id: NavId) => {
     setActive(id);
@@ -502,6 +529,7 @@ export default function NewsroomDashboard() {
         setToast(payload.error?.message || "ซิงก์ RSS ไม่สำเร็จ");
         return;
       }
+      await loadFeed();
       setToast(`ซิงก์ RSS แล้ว · ${payload.data?.sources_checked ?? 0} แหล่ง · เพิ่ม ${payload.data?.items_inserted ?? 0} ข่าว`);
     } catch {
       setToast("เชื่อมต่อ RSS API ไม่สำเร็จ");
@@ -528,7 +556,12 @@ export default function NewsroomDashboard() {
       return;
     }
     const topic = selected.map((cluster) => `${cluster.headline}. ${cluster.summary}`).join("\n");
-    setAutoDraft({ id: Date.now(), topic, selectedHeadlines: selected.map((cluster) => cluster.headline) });
+    setAutoDraft({
+      id: Date.now(),
+      topic,
+      selectedHeadlines: selected.map((cluster) => cluster.headline),
+      selectedFeedItemIds: selected.map((cluster) => cluster.id),
+    });
     navigate("articles");
   };
 
@@ -572,7 +605,7 @@ export default function NewsroomDashboard() {
           </section>
 
           <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {stats.map((item) => <StatCard key={item.label} item={item} />)}
+            {dashboardStats.map((item) => <StatCard key={item.label} item={item} />)}
           </div>
 
           {active === "dashboard" || active === "discovery" ? (
@@ -581,7 +614,7 @@ export default function NewsroomDashboard() {
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="flex items-center gap-2"><span className="size-2 rounded-full bg-[#ef4b55] shadow-[0_0_0_4px_rgba(239,75,85,.1)]" /><h2 className="text-base font-extrabold text-[#1b2436]">Live discovery feed</h2></div>
-                    <p className="mt-1 text-[10px] text-[#9a9fa8]">รวมข่าวซ้ำเป็น Event Cluster · แสดงข้อมูลตัวอย่างเท่านั้น</p>
+                    <p className="mt-1 text-[10px] text-[#9a9fa8]">ข่าวจริงจาก RSS ใน D1 · เปิดต้นฉบับได้ทุกข่าว</p>
                   </div>
                   <div className="flex items-center gap-1 rounded-xl bg-[#f3f0ea] p-1">
                     {(["All", "Transfer", "Club", "League"] as const).map((filter) => (
@@ -591,15 +624,19 @@ export default function NewsroomDashboard() {
                   </div>
                 </div>
                 <div className="space-y-2.5">
-                  {visibleClusters.length ? visibleClusters.map((cluster) => <FeedCard key={cluster.id} cluster={cluster} selected={selectedClusterIds.includes(cluster.id)} onToggle={() => toggleCluster(cluster.id)} onOpen={() => { navigate("fact-check"); setToast(`เปิด Cluster #${cluster.id} สำหรับตรวจสอบแล้ว`); }} />) : (
-                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">ไม่พบข่าวตัวอย่าง</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
+                  {loadingFeed ? (
+                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><RefreshCw className="mx-auto size-6 animate-spin text-[#ef4b55]" /><p className="mt-3 text-xs font-bold text-[#535b68]">กำลังโหลดข่าวจริงจาก D1...</p></div></div>
+                  ) : feedError ? (
+                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#e3b8ba] bg-[#fff8f8] text-center"><div><Database className="mx-auto size-6 text-[#d94a53]" /><p className="mt-3 text-xs font-bold text-[#535b68]">{feedError}</p><button type="button" onClick={() => void loadFeed()} className="mt-3 text-[10px] font-bold text-[#df3d48]">ลองโหลดอีกครั้ง</button></div></div>
+                  ) : visibleClusters.length ? visibleClusters.map((cluster) => <FeedCard key={cluster.id} cluster={cluster} selected={selectedClusterIds.includes(cluster.id)} onToggle={() => toggleCluster(cluster.id)} onOpen={() => window.open(cluster.url, "_blank", "noopener,noreferrer")} />) : (
+                    <div className="grid min-h-52 place-items-center rounded-2xl border border-dashed border-[#ddd8cf] bg-[#faf8f4] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-3 text-xs font-bold text-[#535b68]">{clusters.length ? "ไม่พบข่าวที่ตรงกับตัวกรอง" : "ยังไม่มีข่าวใน D1"}</p><p className="mt-1 text-[10px] text-[#8d929b]">{clusters.length ? "ลองเปลี่ยนคำค้นหรือหมวดข่าว" : "เพิ่มแหล่งข่าวแล้วกด Sync RSS"}</p><button type="button" onClick={() => { setQuery(""); setFeedFilter("All"); }} className="mt-2 text-[10px] font-bold text-[#df3d48]">ล้างตัวกรอง</button></div></div>
                   )}
                 </div>
                 <div className="mt-4 rounded-2xl border border-[#e6e1d9] bg-[#f8f5ef] p-3 sm:flex sm:items-center sm:justify-between">
                   <div><p className="text-[11px] font-extrabold text-[#273044]">เลือกข่าวที่เกี่ยวข้องกัน 1–3 รายการ</p><p className="mt-1 text-[9px] leading-4 text-[#848a94]">เมื่อกด “ยืนยัน” AI จะรวบรวมข้อมูล สร้างบทความ และเปิด Article Editor อัตโนมัติ</p></div>
                   <button type="button" onClick={confirmSelection} disabled={!selectedClusterIds.length} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#ef4b55] px-5 py-3 text-[11px] font-bold text-white shadow-[0_8px_20px_rgba(239,75,85,.2)] disabled:cursor-not-allowed disabled:opacity-40 sm:mt-0 sm:w-auto"><Check className="size-4" />ยืนยัน ({selectedClusterIds.length})</button>
                 </div>
-                <button type="button" onClick={() => navigate("discovery")} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#535b69] hover:bg-[#f8f5ef]">View all 36 clusters <ArrowRight className="size-3.5" /></button>
+                <button type="button" onClick={() => void loadFeed()} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e4dd] py-2.5 text-[11px] font-bold text-[#535b69] hover:bg-[#f8f5ef]">Refresh real news <RefreshCw className="size-3.5" /></button>
               </section>
               <aside className="space-y-4">
                 <ReadinessCard onReview={() => navigate("articles")} />
@@ -613,7 +650,7 @@ export default function NewsroomDashboard() {
           )}
 
           <footer className="mt-6 flex flex-col gap-2 border-t border-[#ddd8d0] pt-4 text-[9px] font-medium text-[#979ba3] sm:flex-row sm:items-center sm:justify-between">
-            <p>ARS GunNer v0.6.1 · Confirm-to-Draft automation · Telegram delivery disabled by default</p>
+            <p>ARS GunNer v0.6.2 · Live D1 news → Confirm-to-Draft · Telegram delivery disabled by default</p>
             <p className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#56bc91]" /> Cloudflare-ready architecture</p>
           </footer>
         </div>
