@@ -2,9 +2,9 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.7.3 capabilities
+## Version 0.8.0 capabilities
 
-- Football-manager-inspired responsive News Inbox with compact real RSS rows, a left workflow rail, and daily Reporter/outlet suggestions on the right
+- Transfer-market-inspired responsive News Inbox using the original ARS GunNer brand: a real-news ticker in a two-column card grid, URL cover images, source-status labels, a top navigation bar, and a right rail for verified reports and daily Reporter/outlet suggestions
 - Favorites and source management backed by Cloudflare D1
 - Semantic topic research across recent RSS reports using meaning, people, events, decisions, and consequences instead of exact-word matching
 - AI Research Briefs that preserve source links, separate facts from claims, record conflicts, and feed an original Article Pattern draft
@@ -125,7 +125,7 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.7.3 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.8.0 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 

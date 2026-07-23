@@ -49,6 +49,8 @@ test("renders the ARS GunNer newsroom shell for live D1 news", async () => {
   assert.match(html, /NEWS INBOX/i);
   assert.match(html, /All News/i);
   assert.match(html, /Reporter &amp; สำนักข่าว/i);
+  assert.match(html, /News Ticker/i);
+  assert.match(html, /Top Verified News/i);
 });
 
 test("ships the semantic Draft workflow and daily discovery controls", async () => {
@@ -61,6 +63,9 @@ test("ships the semantic Draft workflow and daily discovery controls", async () 
   assert.match(source, /Daily discovery/i);
   assert.match(source, /Keep in Favorites/i);
   assert.match(dashboard, /ยืนยันและสร้าง Draft/i);
+  assert.match(dashboard, /Selected real source/i);
+  assert.match(dashboard, /md:grid-cols-2/);
+  assert.match(dashboard, /item\.imageUrl/);
   assert.match(source, /กำลังสร้างบทความอัตโนมัติ/);
   assert.match(dashboard, /\/api\/v1\/feed\?limit=80/);
   assert.match(dashboard, /selectedFeedItemIds/);
@@ -88,7 +93,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.7.3");
+  assert.equal(payload.data.version, "0.8.0");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });

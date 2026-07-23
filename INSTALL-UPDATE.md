@@ -1,13 +1,19 @@
-# ARS GunNer v0.7.3 — Validation Chain + Premier League Teams
+# ARS GunNer v0.8.0 — Market News Dashboard
 
 1. Close the running development server.
 2. Extract this ZIP.
 3. Copy every extracted file and folder into the root of your existing `ARS-GunNer` repository.
 4. Allow Windows to replace files with the same names. Keep the nested folder structure.
-5. In GitHub Desktop, confirm the changed files, use summary `Add semantic Draft and daily source suggestions`, then commit and push to `main`.
+5. In GitHub Desktop, confirm the changed files, use summary `Redesign real news dashboard`, then commit and push to `main`.
 6. Cloudflare Workers Builds should deploy automatically.
 
 No new D1 migration is required for this update.
+
+## Dashboard update
+
+The News Inbox now follows a compact football-market newsroom layout while keeping the original ARS GunNer branding. Real D1/RSS reports appear in a responsive two-column **News Ticker** with URL cover images, source-status labels, timestamps, source weights, a **Top Verified News** rail, daily Reporter/outlet discovery, and the existing Premier League team filters.
+
+Selecting a card still selects exactly one real source. The fixed **ยืนยันและสร้าง Draft** action then runs the existing semantic research, evidence checking, Article Pattern generation, language cleaning, readiness validation, and Human Editor approval workflow.
 
 ## Automatic workflow
 
