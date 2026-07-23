@@ -1,13 +1,19 @@
-# ARS GunNer v0.8.2 — Multi-Source RSS Recovery
+# ARS GunNer v0.8.3 — Football-Only News Scope
 
 1. Close the running development server.
 2. Extract this ZIP.
 3. Copy every extracted file and folder into the root of your existing `ARS-GunNer` repository.
 4. Allow Windows to replace files with the same names. Keep the nested folder structure.
-5. In GitHub Desktop, confirm the changed files, use summary `Fix multi-source RSS sync and retries`, then commit and push to `main`.
+5. In GitHub Desktop, confirm the changed files, use summary `Filter newsroom to football-only coverage`, then commit and push to `main`.
 6. Cloudflare Workers Builds should deploy automatically.
 
 No new D1 migration is required for this update.
+
+## Football-only filter
+
+New RSS items are classified before insertion. Football transfers, clubs, leagues, international competitions, and women's football remain included. Cricket, rugby, American football, basketball, motorsport, tennis, golf, combat sports, other unrelated sports, betting content, and promotional ticket/package posts are rejected.
+
+Existing non-football rows can remain in D1 for audit history, but they are hidden from the Dashboard and excluded from AI research and daily Reporter/outlet suggestions. This update does not delete existing database records.
 
 ## Multi-source RSS fix
 

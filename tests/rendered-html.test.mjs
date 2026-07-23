@@ -105,7 +105,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.8.2");
+  assert.equal(payload.data.version, "0.8.3");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });

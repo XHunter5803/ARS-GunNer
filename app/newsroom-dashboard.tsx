@@ -317,10 +317,10 @@ export default function NewsroomDashboard() {
     setSyncing(true);
     try {
       const response = await fetch("/api/v1/rss/ingest", { method: "POST" });
-      const payload = await response.json() as { data?: { items_inserted?: number }; error?: { message?: string } };
+      const payload = await response.json() as { data?: { items_inserted?: number; items_rejected?: number }; error?: { message?: string } };
       if (!response.ok) return setToast(payload.error?.message || "Sync RSS ไม่สำเร็จ");
       await loadFeed();
-      setToast(`Sync สำเร็จ · เพิ่ม ${payload.data?.items_inserted ?? 0} ข่าว`);
+      setToast(`Sync สำเร็จ · เพิ่ม ${payload.data?.items_inserted ?? 0} ข่าวฟุตบอล · ตัด ${payload.data?.items_rejected ?? 0} ข่าวกีฬาอื่น`);
     } catch {
       setToast("เชื่อมต่อ RSS ไม่สำเร็จ");
     } finally {

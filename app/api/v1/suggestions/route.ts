@@ -1,4 +1,5 @@
 import { apiJson, databaseError } from "../../../../lib/api-response";
+import { isFootballReport } from "../../../../lib/football-filter";
 
 type SuggestionRow = {
   value: string;
@@ -8,6 +9,21 @@ type SuggestionRow = {
 };
 
 type RuntimeBindings = { DB?: D1Database };
+
+type RecentReportRow = {
+  reporter: string | null;
+  source_name: string;
+  reliability_weight: number;
+  headline: string;
+  clean_text: string;
+  canonical_url: string;
+  last_seen: string | null;
+};
+
+type FavoriteRow = {
+  kind: "reporter" | "outlet";
+  value: string;
+};
 
 function dayInBangkok() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
@@ -34,51 +50,78 @@ export async function GET() {
     const { env } = await import("cloudflare:workers") as unknown as { env: RuntimeBindings };
     if (!env.DB) throw new Error("D1 binding DB is unavailable");
 
-    const [reporterResult, outletResult] = await Promise.all([
+    const [newsResult, favoriteResult] = await Promise.all([
       env.DB.prepare(`
         SELECT
-          TRIM(fi.reporter) AS value,
-          COUNT(*) AS article_count,
-          CAST(AVG(COALESCE(s.reliability_weight, 50)) AS INTEGER) AS reliability_weight,
-          MAX(COALESCE(fi.published_at, fi.created_at)) AS last_seen
+          fi.reporter,
+          s.name AS source_name,
+          s.reliability_weight,
+          fi.headline,
+          fi.clean_text,
+          fi.canonical_url,
+          COALESCE(fi.published_at, fi.created_at) AS last_seen
         FROM feed_items fi
-        LEFT JOIN sources s ON s.id = fi.source_id
-        WHERE fi.reporter IS NOT NULL
-          AND LENGTH(TRIM(fi.reporter)) >= 2
-          AND datetime(COALESCE(fi.published_at, fi.created_at)) >= datetime('now', '-14 days')
-          AND NOT EXISTS (
-            SELECT 1 FROM favorite_filters f
-            WHERE f.kind = 'reporter' AND LOWER(TRIM(f.value)) = LOWER(TRIM(fi.reporter))
-          )
-        GROUP BY LOWER(TRIM(fi.reporter))
-        ORDER BY article_count DESC, reliability_weight DESC, last_seen DESC
-        LIMIT 5
-      `).all<SuggestionRow>(),
-      env.DB.prepare(`
-        SELECT
-          s.name AS value,
-          COUNT(fi.id) AS article_count,
-          s.reliability_weight AS reliability_weight,
-          MAX(COALESCE(fi.published_at, fi.created_at)) AS last_seen
-        FROM sources s
-        JOIN feed_items fi ON fi.source_id = s.id
+        JOIN sources s ON s.id = fi.source_id
         WHERE s.status = 'active'
           AND datetime(COALESCE(fi.published_at, fi.created_at)) >= datetime('now', '-14 days')
-          AND NOT EXISTS (
-            SELECT 1 FROM favorite_filters f
-            WHERE f.kind = 'outlet' AND LOWER(TRIM(f.value)) = LOWER(TRIM(s.name))
-          )
-        GROUP BY s.id, s.name, s.reliability_weight
-        ORDER BY article_count DESC, s.reliability_weight DESC, last_seen DESC
-        LIMIT 5
-      `).all<SuggestionRow>(),
+        ORDER BY datetime(COALESCE(fi.published_at, fi.created_at)) DESC
+        LIMIT 300
+      `).all<RecentReportRow>(),
+      env.DB.prepare(`
+        SELECT kind, value
+        FROM favorite_filters
+        WHERE is_active = 1 AND kind IN ('reporter', 'outlet')
+      `).all<FavoriteRow>(),
     ]);
+
+    const favorites = new Set((favoriteResult.results ?? []).map((row) => `${row.kind}:${row.value.trim().toLocaleLowerCase("en-US")}`));
+    const footballReports = (newsResult.results ?? []).filter((row) => isFootballReport({
+      headline: row.headline,
+      summary: row.clean_text,
+      sourceName: row.source_name,
+      url: row.canonical_url,
+    }));
+    const reporters = new Map<string, { value: string; count: number; weight: number; lastSeen: string | null }>();
+    const outlets = new Map<string, { value: string; count: number; weight: number; lastSeen: string | null }>();
+
+    for (const row of footballReports) {
+      const reporter = row.reporter?.trim() ?? "";
+      if (reporter.length >= 2) {
+        const key = reporter.toLocaleLowerCase("en-US");
+        const current = reporters.get(key) ?? { value: reporter, count: 0, weight: 0, lastSeen: row.last_seen };
+        current.count += 1;
+        current.weight += Number(row.reliability_weight) || 50;
+        current.lastSeen = !current.lastSeen || (row.last_seen && row.last_seen > current.lastSeen) ? row.last_seen : current.lastSeen;
+        reporters.set(key, current);
+      }
+      const outlet = row.source_name.trim();
+      const outletKey = outlet.toLocaleLowerCase("en-US");
+      const currentOutlet = outlets.get(outletKey) ?? { value: outlet, count: 0, weight: 0, lastSeen: row.last_seen };
+      currentOutlet.count += 1;
+      currentOutlet.weight += Number(row.reliability_weight) || 50;
+      currentOutlet.lastSeen = !currentOutlet.lastSeen || (row.last_seen && row.last_seen > currentOutlet.lastSeen) ? row.last_seen : currentOutlet.lastSeen;
+      outlets.set(outletKey, currentOutlet);
+    }
+
+    const ranked = (kind: "reporter" | "outlet", rows: Map<string, { value: string; count: number; weight: number; lastSeen: string | null }>) =>
+      [...rows.values()]
+        .filter((row) => !favorites.has(`${kind}:${row.value.toLocaleLowerCase("en-US")}`))
+        .map((row) => ({
+          value: row.value,
+          article_count: row.count,
+          reliability_weight: Math.round(row.weight / row.count),
+          last_seen: row.lastSeen,
+        }))
+        .sort((a, b) => b.article_count - a.article_count || b.reliability_weight - a.reliability_weight || String(b.last_seen).localeCompare(String(a.last_seen)))
+        .slice(0, 5)
+        .map((row) => mapSuggestion(kind, row));
 
     return apiJson({
       day: dayInBangkok(),
+      scope: "football_only",
       suggestions: {
-        reporters: (reporterResult.results ?? []).map((row: SuggestionRow) => mapSuggestion("reporter", row)),
-        outlets: (outletResult.results ?? []).map((row: SuggestionRow) => mapSuggestion("outlet", row)),
+        reporters: ranked("reporter", reporters),
+        outlets: ranked("outlet", outlets),
       },
     });
   } catch (error) {

@@ -4,6 +4,7 @@ import { feedItems, sources } from "../../../../../db/schema";
 import { apiError, apiJson, databaseError, readJson } from "../../../../../lib/api-response";
 import { generatePerspectiveArticle } from "../../../../../lib/article-generation";
 import type { GeneratePerspectiveInput } from "../../../../../lib/article-generation";
+import { isFootballReport } from "../../../../../lib/football-filter";
 import { buildSemanticResearchBrief } from "../../../../../lib/semantic-research";
 import type { ResearchCandidate, WorkersAiBinding } from "../../../../../lib/semantic-research";
 import type { NewsSourceInput, SourceType } from "../../../../../lib/news-pipeline";
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
       .from(feedItems)
       .leftJoin(sources, eq(feedItems.sourceId, sources.id))
       .orderBy(desc(feedItems.publishedAt), desc(feedItems.createdAt))
-      .limit(80);
+      .limit(160);
 
     const candidates: ResearchCandidate[] = rows
       .map((row) => ({
@@ -76,6 +77,12 @@ export async function POST(request: Request) {
         publishedAt: row.publishedAt,
         cleanText: row.cleanText,
         language: row.language,
+      }))
+      .filter((candidate) => isFootballReport({
+        headline: candidate.headline,
+        summary: candidate.cleanText,
+        sourceName: candidate.sourceName,
+        url: candidate.url,
       }))
       .filter((candidate) => candidate.headline.trim() && candidate.url.trim());
 

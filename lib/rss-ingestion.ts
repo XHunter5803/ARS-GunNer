@@ -1,4 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
+import { isFootballReport } from "./football-filter";
 import { canonicalizeUrl, cleanArticleText } from "./news-pipeline";
 import { isSafePublicHttpsUrl } from "./security";
 
@@ -197,13 +198,22 @@ export async function runRssIngestion(db: D1Database, options: RssIngestionOptio
       .bind(limit)
       .all<SourceRow>();
   const sourceRows = sourceResult.results ?? [];
-  const result = { sources_checked: sourceRows.length, sources_succeeded: 0, sources_failed: 0, items_seen: 0, items_inserted: 0, errors: [] as Array<{ source_id: number; message: string }> };
+  const result = { sources_checked: sourceRows.length, sources_succeeded: 0, sources_failed: 0, items_seen: 0, items_rejected: 0, items_inserted: 0, errors: [] as Array<{ source_id: number; message: string }> };
 
   for (const source of sourceRows) {
     try {
       const xml = await fetchFeed(source.feed_url);
-      const items = parseRssXml(xml, source.feed_url).slice(0, 25);
-      result.items_seen += items.length;
+      const parsedItems = parseRssXml(xml, source.feed_url).slice(0, 50);
+      const items = parsedItems
+        .filter((item) => isFootballReport({
+          headline: item.title,
+          summary: item.cleanText,
+          sourceName: source.name,
+          url: item.url,
+        }))
+        .slice(0, 25);
+      result.items_seen += parsedItems.length;
+      result.items_rejected += parsedItems.length - items.length;
       if (items.length) {
         const statements = items.map((item) => db.prepare(
           "INSERT INTO feed_items (source_id, canonical_url, headline, reporter, language, published_at, raw_text, clean_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(canonical_url) DO UPDATE SET reporter = excluded.reporter, language = excluded.language, published_at = excluded.published_at, raw_text = excluded.raw_text, clean_text = excluded.clean_text, updated_at = CURRENT_TIMESTAMP",

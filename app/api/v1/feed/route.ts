@@ -1,7 +1,8 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { feedItems, sources } from "../../../../db/schema";
 import { apiJson, databaseError } from "../../../../lib/api-response";
+import { isFootballReport } from "../../../../lib/football-filter";
 
 function categoryFor(headline: string): "Transfer" | "Club" | "League" {
   if (/transfer|sign(?:ing|ed)?|loan|bid|move|ย้าย|เซ็น|ยืม|ข้อเสนอ|ตลาดซื้อขาย/i.test(headline)) return "Transfer";
@@ -44,11 +45,19 @@ export async function GET(request: Request) {
       .from(feedItems)
       .leftJoin(sources, eq(feedItems.sourceId, sources.id))
       .orderBy(desc(feedItems.publishedAt), desc(feedItems.createdAt))
-      .limit(limit);
+      .limit(300);
 
-    const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(feedItems);
+    const footballRows = rows
+      .filter((row) => isFootballReport({
+        headline: row.headline,
+        summary: row.summary,
+        sourceName: row.sourceName,
+        url: row.url,
+      }))
+      .slice(0, limit);
     return apiJson({
-      reports: rows.map((row) => ({
+      scope: "football_only",
+      reports: footballRows.map((row) => ({
         id: row.id,
         category: categoryFor(row.headline),
         headline: row.headline,
@@ -63,7 +72,7 @@ export async function GET(request: Request) {
         source_type: row.sourceType || "outlet",
         reliability_weight: row.reliabilityWeight ?? 50,
       })),
-      total: Number(countRow?.count ?? rows.length),
+      total: footballRows.length,
     });
   } catch (error) {
     return databaseError(error);

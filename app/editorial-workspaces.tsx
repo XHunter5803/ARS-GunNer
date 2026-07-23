@@ -308,14 +308,14 @@ function SourcesWorkspace({ notify }: { notify: (message: string) => void }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: form.name, homepage_url: form.homepage, feed_url: form.feed, source_type: form.type, reliability_weight: form.type === "official" ? 100 : 70 }),
     });
-    const payload = await response.json() as { data?: { source?: Source; ingestion?: { items_inserted?: number; sources_failed?: number; errors?: Array<{ message: string }> } }; error?: { message?: string } };
+    const payload = await response.json() as { data?: { source?: Source; ingestion?: { items_inserted?: number; items_rejected?: number; sources_failed?: number; errors?: Array<{ message: string }> } }; error?: { message?: string } };
     if (!response.ok || !payload.data?.source) return notify(payload.error?.message || "เพิ่มแหล่งข่าวไม่สำเร็จ");
     await loadSources();
     setForm({ name: "", homepage: "", feed: "", type: "outlet" });
     if (payload.data.ingestion?.sources_failed) {
       notify(`เพิ่ม Source แล้ว แต่ดึงข่าวไม่สำเร็จ: ${readableSourceError(payload.data.ingestion.errors?.[0]?.message ?? "")}`);
     } else {
-      notify(`เพิ่ม Source และนำเข้า ${payload.data.ingestion?.items_inserted ?? 0} ข่าวแล้ว`);
+      notify(`เพิ่ม Source และนำเข้า ${payload.data.ingestion?.items_inserted ?? 0} ข่าวฟุตบอล · ตัด ${payload.data.ingestion?.items_rejected ?? 0} ข่าวอื่น`);
     }
   };
 
@@ -328,13 +328,13 @@ function SourcesWorkspace({ notify }: { notify: (message: string) => void }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: source.id, action: "sync" }),
       });
-      const payload = await response.json() as { data?: { ingestion?: { items_inserted?: number; sources_failed?: number; errors?: Array<{ message: string }> } }; error?: { message?: string } };
+      const payload = await response.json() as { data?: { ingestion?: { items_inserted?: number; items_rejected?: number; sources_failed?: number; errors?: Array<{ message: string }> } }; error?: { message?: string } };
       if (!response.ok) return notify(payload.error?.message || `Sync ${source.name} ไม่สำเร็จ`);
       await loadSources();
       if (payload.data?.ingestion?.sources_failed) {
         notify(`${source.name}: ${readableSourceError(payload.data.ingestion.errors?.[0]?.message ?? "ดึงข่าวไม่สำเร็จ")}`);
       } else {
-        notify(`${source.name}: นำเข้า/อัปเดต ${payload.data?.ingestion?.items_inserted ?? 0} ข่าว`);
+        notify(`${source.name}: นำเข้า/อัปเดต ${payload.data?.ingestion?.items_inserted ?? 0} ข่าวฟุตบอล · ตัด ${payload.data?.ingestion?.items_rejected ?? 0} ข่าวอื่น`);
       }
     } finally {
       setSyncingSourceId(null);
@@ -352,7 +352,7 @@ function SourcesWorkspace({ notify }: { notify: (message: string) => void }) {
           <select aria-label="ประเภทแหล่งข่าว" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as Source["sourceType"] })} className="h-11 w-full rounded-xl border border-[#dedad3] bg-white px-3 text-xs outline-none focus:border-[#dc626a]"><option value="official">Official</option><option value="original">Original source</option><option value="reporter">Reporter</option><option value="outlet">News outlet</option></select>
         </div>
         <button type="button" onClick={() => void addSource()} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#18243a] py-3 text-[11px] font-bold text-white"><Plus className="size-4" />Add & sync source</button>
-        <div className="mt-4"><StatusBanner mode={mode} message={mode === "live" ? "เพิ่มแล้วระบบจะดึง RSS ทันที · ถ้าล้มเหลวจะแสดงเหตุผลและปุ่มลองใหม่" : "แสดงข้อมูล Demo · ยังไม่ส่ง Request ไปยัง RSS ภายนอก"} /></div>
+        <div className="mt-4"><StatusBanner mode={mode} message={mode === "live" ? "Football only · ระบบจะตัดกีฬาอื่น โฆษณา และ Betting ก่อนบันทึกลงข่าว" : "แสดงข้อมูล Demo · ยังไม่ส่ง Request ไปยัง RSS ภายนอก"} /></div>
       </article>
       <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
         <div className="flex items-center justify-between"><h2 className="text-lg font-extrabold">Source registry</h2><span className="rounded-full bg-[#f1eee8] px-2.5 py-1 text-[9px] font-bold">{sources.length} feeds</span></div>
