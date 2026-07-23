@@ -1,4 +1,4 @@
-# ARS GunNer v0.7.1 — Cover + Draft Fix
+# ARS GunNer v0.7.2 — Grounded Research Brief
 
 1. Close the running development server.
 2. Extract this ZIP.
@@ -14,6 +14,8 @@ No new D1 migration is required for this update.
 Select exactly 1 real news item on Dashboard → click **ยืนยันและสร้าง Draft** → semantic ranking of recent D1/RSS reports → sourced Research Brief → facts, claims, and conflicts → original perspective article opens automatically in Article Editor → readiness validation → revision/review/approval. If only the selected source is available, the system still creates a low-readiness Draft and blocks publication until evidence is sufficient.
 
 After deployment, click **Sync RSS** once. Existing feed rows are refreshed so newly detected image URLs can appear as covers; no D1 migration is required.
+
+Research uses `@cf/meta/llama-3.1-8b-instruct-fast` for schema-controlled JSON. Every evidence point carries source IDs, unsupported `confirmed` labels are downgraded on the server, and the Article Editor provides direct source links for verification.
 
 The AI may add original transitions and clearly marked analysis supported by the gathered evidence. It must not copy article sentences or invent facts, quotes, numbers, dates, people, or sources.
 

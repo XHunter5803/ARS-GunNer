@@ -30,6 +30,17 @@ function extractText(output: unknown): string {
   return typeof message?.content === "string" ? message.content : "";
 }
 
+function extractDraft(output: unknown) {
+  if (output && typeof output === "object") {
+    const record = output as Record<string, unknown>;
+    if (record.response && typeof record.response === "object" && !Array.isArray(record.response)) {
+      return record.response as Partial<PerspectiveArticle>;
+    }
+    if ("headline" in record && "paragraphs" in record) return record as Partial<PerspectiveArticle>;
+  }
+  return parseJsonObject(extractText(output));
+}
+
 function parseJsonObject(value: string) {
   const withoutFence = value.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
   const start = withoutFence.indexOf("{");
@@ -81,7 +92,7 @@ function promptFor(input: GeneratePerspectiveInput) {
 export async function generatePerspectiveArticle(ai: WorkersAi, model: string, input: GeneratePerspectiveInput) {
   const { analysis, messages } = promptFor(input);
   const output = await ai.run(model, { messages, temperature: 0.15, max_tokens: 3_000 });
-  const draft = parseJsonObject(extractText(output));
+  const draft = extractDraft(output);
   if (!analysis.main_source) throw new Error("MAIN_SOURCE_MISSING");
 
   const main = analysis.main_source;

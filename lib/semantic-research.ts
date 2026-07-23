@@ -29,6 +29,7 @@ export type ResearchBrief = {
   selected_source_ids: number[];
   selection_reasons: Array<{ source_id: number; reason: string }>;
   main_points: ResearchPoint[];
+  conflict_points: ResearchPoint[];
   confirmed_facts: string[];
   reported_claims: string[];
   conflicts: string[];
@@ -43,6 +44,17 @@ function extractText(output: unknown) {
   const first = choices[0] as Record<string, unknown> | undefined;
   const message = first?.message as Record<string, unknown> | undefined;
   return typeof message?.content === "string" ? message.content : "";
+}
+
+function extractJsonObject(output: unknown) {
+  if (output && typeof output === "object") {
+    const record = output as Record<string, unknown>;
+    if (record.response && typeof record.response === "object" && !Array.isArray(record.response)) {
+      return record.response as Record<string, unknown>;
+    }
+    if ("topic" in record && "main_points" in record) return record;
+  }
+  return parseJsonObject(extractText(output));
 }
 
 function parseJsonObject(value: string) {
@@ -82,6 +94,27 @@ function parseRankedIndexes(output: unknown, count: number) {
     .sort((a, b) => b.score - a.score);
 }
 
+function sourceOrigin(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function verifiedEvidenceLevel(
+  requested: unknown,
+  sourceIds: number[],
+  candidates: ResearchCandidate[],
+): ResearchPoint["evidence_level"] {
+  if (requested === "inference") return "inference";
+  if (requested !== "confirmed") return "reported";
+  const cited = candidates.filter((candidate) => sourceIds.includes(candidate.id));
+  const official = cited.some((candidate) => candidate.sourceType === "official");
+  const independentOrigins = new Set(cited.map((candidate) => sourceOrigin(candidate.url)).filter(Boolean)).size;
+  return official || independentOrigins >= 2 ? "confirmed" : "reported";
+}
+
 async function rerankCandidates(ai: WorkersAiBinding, model: string, keyword: string, candidates: ResearchCandidate[]) {
   const contexts = candidates.map((candidate) => ({
     text: [candidate.headline, candidate.cleanText.slice(0, 900), candidate.sourceName, candidate.reporter ?? ""].filter(Boolean).join("\n"),
@@ -98,33 +131,42 @@ async function rerankCandidates(ai: WorkersAiBinding, model: string, keyword: st
 
 function normalizeBrief(raw: Record<string, unknown>, candidates: ResearchCandidate[]): ResearchBrief {
   const allowedIds = new Set(candidates.map((candidate) => candidate.id));
-  const rawPoints = Array.isArray(raw.main_points) ? raw.main_points : [];
-  const mainPoints: ResearchPoint[] = rawPoints
+  const normalizePoints = (value: unknown, conflictsOnly = false) => (Array.isArray(value) ? value : [])
     .map((item) => {
       const row = item as Record<string, unknown>;
-      const evidence = row.evidence_level;
       const sourceIds = Array.isArray(row.source_ids)
         ? row.source_ids.map(Number).filter((id) => Number.isInteger(id) && allowedIds.has(id))
         : [];
       return {
         text: compact(row.text, 1_200),
         source_ids: [...new Set(sourceIds)].slice(0, 8),
-        evidence_level: evidence === "confirmed" || evidence === "inference" ? evidence : "reported",
+        evidence_level: conflictsOnly
+          ? "reported"
+          : verifiedEvidenceLevel(row.evidence_level, sourceIds, candidates),
       } as ResearchPoint;
     })
-    .filter((point) => point.text && point.source_ids.length)
+    .filter((point) => point.text && point.source_ids.length >= (conflictsOnly ? 2 : 1))
     .slice(0, 12);
 
-  const explicitIds = Array.isArray(raw.selected_source_ids)
-    ? raw.selected_source_ids.map(Number).filter((id) => Number.isInteger(id) && allowedIds.has(id))
-    : [];
+  const mainPoints = normalizePoints(raw.main_points);
+  const conflictPoints = normalizePoints(raw.conflict_points, true);
   const pointIds = mainPoints.flatMap((point) => point.source_ids);
-  const selectedIds = [...new Set([...explicitIds, ...pointIds])].slice(0, 8);
+  const conflictIds = conflictPoints.flatMap((point) => point.source_ids);
+  const selectedIds = [...new Set([...pointIds, ...conflictIds])].slice(0, 8);
   const reasons = Array.isArray(raw.selection_reasons) ? raw.selection_reasons : [];
+  const confirmedFacts = uniqueStrings(
+    mainPoints.filter((point) => point.evidence_level === "confirmed").map((point) => point.text),
+    20,
+  );
+  const reportedClaims = uniqueStrings(
+    mainPoints.filter((point) => point.evidence_level !== "confirmed").map((point) => point.text),
+    20,
+  );
+  const groundedOverview = mainPoints.slice(0, 4).map((point) => point.text).join(" ");
 
   return {
     topic: compact(raw.topic, 300),
-    overview: compact(raw.overview, 1_500),
+    overview: compact(groundedOverview || raw.overview, 1_500),
     selected_source_ids: selectedIds,
     selection_reasons: reasons
       .map((item) => {
@@ -134,11 +176,61 @@ function normalizeBrief(raw: Record<string, unknown>, candidates: ResearchCandid
       .filter((item) => selectedIds.includes(item.source_id) && item.reason)
       .slice(0, 8),
     main_points: mainPoints,
-    confirmed_facts: uniqueStrings(raw.confirmed_facts, 20),
-    reported_claims: uniqueStrings(raw.reported_claims, 20),
-    conflicts: uniqueStrings(raw.conflicts, 12),
+    conflict_points: conflictPoints,
+    confirmed_facts: confirmedFacts,
+    reported_claims: reportedClaims,
+    conflicts: uniqueStrings(conflictPoints.map((point) => point.text), 12),
   };
 }
+
+const researchBriefSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    topic: { type: "string" },
+    overview: { type: "string" },
+    selected_source_ids: { type: "array", items: { type: "integer" } },
+    selection_reasons: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          source_id: { type: "integer" },
+          reason: { type: "string" },
+        },
+        required: ["source_id", "reason"],
+      },
+    },
+    main_points: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          text: { type: "string" },
+          source_ids: { type: "array", items: { type: "integer" } },
+          evidence_level: { type: "string", enum: ["confirmed", "reported", "inference"] },
+        },
+        required: ["text", "source_ids", "evidence_level"],
+      },
+    },
+    conflict_points: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          text: { type: "string" },
+          source_ids: { type: "array", items: { type: "integer" } },
+          evidence_level: { type: "string", enum: ["reported"] },
+        },
+        required: ["text", "source_ids", "evidence_level"],
+      },
+    },
+  },
+  required: ["topic", "overview", "selected_source_ids", "selection_reasons", "main_points", "conflict_points"],
+} as const;
 
 export async function buildSemanticResearchBrief(options: {
   ai: WorkersAiBinding;
@@ -182,17 +274,23 @@ export async function buildSemanticResearchBrief(options: {
           "A confirmed fact must come from an official source or be supported by at least two independent sources. Everything else is reported or inference.",
           "Keep interest, inquiry, negotiation, agreement, prediction, and confirmation at their original evidence level.",
           "If reports conflict, record the conflict instead of resolving it yourself.",
-          "Return one JSON object only with: topic, overview, selected_source_ids, selection_reasons, main_points, confirmed_facts, reported_claims, conflicts.",
+          "Return one JSON object only with: topic, overview, selected_source_ids, selection_reasons, main_points, conflict_points.",
           "Each main_points item must contain text, source_ids, evidence_level (confirmed|reported|inference).",
+          "Each conflict_points item must cite at least two disagreeing source_ids and use evidence_level reported. Return an empty array when there is no sourced conflict.",
         ].join("\n"),
       },
       { role: "user", content: JSON.stringify({ research_topic: options.keyword, seed_report_ids: anchorIds, reports: sourcePayload }) },
     ],
+    response_format: {
+      type: "json_schema",
+      json_schema: researchBriefSchema,
+    },
     temperature: 0.05,
     max_tokens: 2_500,
   });
 
-  const normalized = normalizeBrief(parseJsonObject(extractText(output)), shortlist);
+  const normalized = normalizeBrief(extractJsonObject(output), shortlist);
+  if (!normalized.main_points.length) throw new Error("RESEARCH_BRIEF_EMPTY");
   const brief = {
     ...normalized,
     selected_source_ids: [...new Set([...anchorIds, ...normalized.selected_source_ids])].filter((id) => shortlist.some((candidate) => candidate.id === id)).slice(0, 8),

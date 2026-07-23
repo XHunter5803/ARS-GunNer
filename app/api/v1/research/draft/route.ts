@@ -16,6 +16,7 @@ type ResearchRequest = Pick<GeneratePerspectiveInput, "language" | "category" | 
 type RuntimeBindings = {
   AI?: WorkersAiBinding;
   WORKERS_AI_MODEL?: string;
+  WORKERS_AI_RESEARCH_MODEL?: string;
   WORKERS_AI_RERANKER_MODEL?: string;
 };
 
@@ -79,8 +80,9 @@ export async function POST(request: Request) {
     }
 
     const generationModel = env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash";
+    const researchModel = env.WORKERS_AI_RESEARCH_MODEL || "@cf/meta/llama-3.1-8b-instruct-fast";
     const rerankerModel = env.WORKERS_AI_RERANKER_MODEL || "@cf/baai/bge-reranker-base";
-    const research = await buildSemanticResearchBrief({ ai: env.AI, generationModel, rerankerModel, keyword, candidates, anchorIds });
+    const research = await buildSemanticResearchBrief({ ai: env.AI, generationModel: researchModel, rerankerModel, keyword, candidates, anchorIds });
     if (research.selected.length < 1) {
       return apiError(422, "INSUFFICIENT_RELATED_SOURCES", "AI ไม่พบข่าวตั้งต้นที่ใช้สร้าง Draft");
     }
@@ -127,12 +129,13 @@ export async function POST(request: Request) {
       })),
       article: generated.article,
       validation: generated.validation,
-      models: { reranker: rerankerModel, writer: generationModel },
+      models: { reranker: rerankerModel, research: researchModel, writer: generationModel },
     }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
     if (message === "PAYLOAD_TOO_LARGE") return apiError(413, "PAYLOAD_TOO_LARGE", "ข้อมูลมีขนาดใหญ่เกินกำหนด");
-    if (message.includes("RESEARCH_JSON") || message.includes("AI_JSON")) return apiError(502, "AI_INVALID_JSON", "AI ไม่ได้ส่ง Research Brief ในรูปแบบที่ถูกต้อง");
+    if (message.includes("RESEARCH_JSON") || message === "RESEARCH_BRIEF_EMPTY") return apiError(502, "AI_INVALID_RESEARCH", "AI ไม่ได้ส่ง Research Brief ที่มีหลักฐานอ้างอิงครบ กรุณาลองใหม่");
+    if (message.includes("AI_JSON")) return apiError(502, "AI_INVALID_DRAFT", "Research Brief สำเร็จ แต่ AI ส่ง Draft บทความมาไม่ครบ กรุณาลองใหม่");
     if (/D1|database|SQL/i.test(message)) return databaseError(error);
     return apiError(500, "RESEARCH_DRAFT_FAILED", "ไม่สามารถรวบรวมข้อมูลและสร้าง Draft ได้ กรุณาลองใหม่");
   }

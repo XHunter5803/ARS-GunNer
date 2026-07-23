@@ -357,6 +357,7 @@ type ResearchBriefView = {
   topic: string;
   overview: string;
   main_points: Array<{ text: string; source_ids: number[]; evidence_level: "confirmed" | "reported" | "inference" }>;
+  conflict_points: Array<{ text: string; source_ids: number[]; evidence_level: "reported" }>;
   confirmed_facts: string[];
   reported_claims: string[];
   conflicts: string[];
@@ -540,7 +541,28 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
       </article>
 
       <aside className="space-y-4">
-        <article className="rounded-[22px] border border-[#e3dee8] bg-white p-5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#2f8f82]">Research Brief</p><h3 className="mt-2 text-sm font-extrabold">{research?.topic || topic}</h3><p className="mt-2 text-[10px] leading-5 text-[#747c88]">{research?.overview}</p></article>
+        <article className="rounded-[22px] border border-[#e3dee8] bg-white p-5 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#2f8f82]">Research Brief</p>
+          <h3 className="mt-2 text-sm font-extrabold">{research?.topic || topic}</h3>
+          <p className="mt-2 text-[10px] leading-5 text-[#747c88]">{research?.overview}</p>
+          <div className="mt-4 space-y-3">
+            {research?.main_points.map((point, index) => (
+              <div key={`${point.text}-${index}`} className="rounded-xl border border-[#e5e0e8] bg-[#fffefd] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`rounded-full px-2 py-1 text-[8px] font-bold uppercase ${point.evidence_level === "confirmed" ? "bg-[#e8f8f3] text-[#26795f]" : point.evidence_level === "inference" ? "bg-[#f0edf3] text-[#705f7d]" : "bg-[#fff3df] text-[#94601e]"}`}>{point.evidence_level}</span>
+                  <span className="text-[8px] font-bold text-[#9297a0]">{point.source_ids.length} source{point.source_ids.length === 1 ? "" : "s"}</span>
+                </div>
+                <p className="mt-2 text-[10px] leading-5 text-[#606875]">{point.text}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {point.source_ids.map((sourceId) => {
+                    const source = researchSources.find((item) => item.id === sourceId);
+                    return source ? <a key={sourceId} href={source.url} target="_blank" rel="noreferrer" className="rounded-md bg-[#f0edf3] px-2 py-1 text-[8px] font-bold text-[#655b70] hover:bg-[#e2dbe8]">Source #{sourceId}</a> : null;
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
         <article className="rounded-[22px] border border-[#e3dee8] bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><h3 className="text-xs font-extrabold">แหล่งข่าวที่ใช้</h3><span className="rounded-full bg-[#f0edf3] px-2 py-1 text-[8px] font-bold">{researchSources.length}</span></div><div className="mt-3 space-y-2">{researchSources.map((source) => <a key={source.id} href={source.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-[#e5e0e8] p-3 hover:border-[#62b7ab]"><p className="line-clamp-2 text-[10px] font-bold leading-4">{source.headline}</p><p className="mt-1 text-[9px] text-[#8b919a]">{source.source_name}{source.reporter ? ` · ${source.reporter}` : ""}</p></a>)}</div></article>
         <article className="rounded-[22px] border border-[#e3dee8] bg-white p-5 shadow-sm"><h3 className="text-xs font-extrabold text-[#26795f]">Confirmed Facts</h3><div className="mt-3 space-y-2">{evidence.confirmed_facts.length ? evidence.confirmed_facts.map((fact) => <p key={fact} className="text-[10px] leading-5 text-[#666e79]">• {fact}</p>) : <p className="text-[10px] text-[#9297a0]">ยังไม่มีข้อเท็จจริงที่ยืนยันเพียงพอ</p>}</div><h3 className="mt-5 text-xs font-extrabold text-[#9a651f]">Reported Claims</h3><div className="mt-3 space-y-2">{evidence.reported_claims.map((claim) => <p key={claim} className="text-[10px] leading-5 text-[#666e79]">• {claim}</p>)}</div>{evidence.conflicts.length ? <><h3 className="mt-5 text-xs font-extrabold text-[#b13d49]">Conflicts</h3><div className="mt-3 space-y-2">{evidence.conflicts.map((conflict) => <p key={conflict} className="text-[10px] leading-5 text-[#7d5960]">• {conflict}</p>)}</div></> : null}</article>
         <article className="rounded-[22px] border border-[#e3dee8] bg-white p-5 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#8b919a]">Readiness</p><h3 className="mt-1 text-xl font-black">{validation ? `${validation.readiness_score}/100` : "ยังไม่ตรวจ"}</h3></div><ShieldCheck className={`size-7 ${(validation?.readiness_score ?? 0) >= 85 ? "text-[#2f8f72]" : "text-[#b57837]"}`} /></div>{validation ? <div className="mt-3 space-y-2">{validation.readiness_notes.map((note) => <p key={note} className="flex gap-2 text-[9px] leading-4 text-[#777e89]"><ChevronRight className="mt-0.5 size-3 shrink-0 text-[#b14b57]" />{note}</p>)}</div> : null}</article>

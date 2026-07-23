@@ -2,7 +2,7 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.7.1 capabilities
+## Version 0.7.2 capabilities
 
 - Football-manager-inspired responsive News Inbox with compact real RSS rows, a left workflow rail, and daily Reporter/outlet suggestions on the right
 - Favorites and source management backed by Cloudflare D1
@@ -12,6 +12,8 @@ Editorial intelligence dashboard for discovering football news, comparing source
 - Live Dashboard feed from RSS reports stored in D1; select exactly 1 real report, click `ยืนยันและสร้าง Draft`, and let AI search semantically related D1 reports before the populated Article Editor opens
 - RSS/Atom cover-image extraction from Media RSS, enclosures, or article HTML, with a safe source-initial fallback when an image is missing or broken
 - Single-source Draft fallback with a deliberately low readiness score, persistent error details, and one-click retry; publication remains blocked until the evidence gate passes
+- Structured Research Brief output using a JSON-capable Workers AI model, with a source ID and clickable URL for every evidence point
+- Server-side evidence enforcement: `confirmed` requires an official source or two independent origins; unsupported confirmations are downgraded to `reported`, and conflicts require two cited sources
 - RSS/Atom parsing, canonical-link deduplication, event clustering, and Cron ingestion
 - Source ranking, confirmed-fact/report-claim separation, contradiction reporting, and readiness scoring
 - Thai, English, and bilingual Article Pattern generation with revision history and approval gates
@@ -120,7 +122,7 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.7.1 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.7.2 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 
