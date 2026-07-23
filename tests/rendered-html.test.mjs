@@ -76,7 +76,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.7.0");
+  assert.equal(payload.data.version, "0.7.1");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });
@@ -173,10 +173,11 @@ test("article validator returns the readiness gate as JSON", async () => {
 test("RSS parser reads RSS 2.0, removes markup, and canonicalizes links", async () => {
   const worker = await workerPromise;
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-    <rss version="2.0"><channel><title>Demo Feed</title>
+    <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/"><channel><title>Demo Feed</title>
       <item>
         <title>Demo transfer update</title>
         <link>https://news.example/story?utm_source=rss&amp;id=7</link>
+        <media:thumbnail url="https://cdn.example/cover.jpg" />
         <dc:creator>Demo Reporter</dc:creator>
         <pubDate>Wed, 22 Jul 2026 03:00:00 GMT</pubDate>
         <description><![CDATA[<p>มีรายงานว่ากำลังติดตามสถานการณ์</p><br>advertisement]]></description>
@@ -197,6 +198,7 @@ test("RSS parser reads RSS 2.0, removes markup, and canonicalizes links", async 
   assert.equal(payload.data.item_count, 1);
   assert.equal(payload.data.items[0].title, "Demo transfer update");
   assert.equal(payload.data.items[0].url, "https://news.example/story?id=7");
+  assert.equal(payload.data.items[0].imageUrl, "https://cdn.example/cover.jpg");
   assert.match(payload.data.items[0].cleanText, /ติดตามสถานการณ์/);
   assert.doesNotMatch(payload.data.items[0].cleanText, /advertisement/i);
 });

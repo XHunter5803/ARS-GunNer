@@ -37,6 +37,7 @@ type FeedItem = {
   category: Exclude<Category, "All">;
   headline: string;
   summary: string;
+  imageUrl: string | null;
   sourceName: string;
   sourceType: "official" | "original" | "reporter" | "outlet";
   reporter: string | null;
@@ -51,6 +52,7 @@ type FeedApiReport = {
   category: FeedItem["category"];
   headline: string;
   summary: string;
+  image_url: string | null;
   source_name: string;
   source_type: FeedItem["sourceType"];
   reporter: string | null;
@@ -124,11 +126,16 @@ function Sidebar({ active, open, onSelect, onClose }: { active: NavId; open: boo
 }
 
 function NewsRow({ item, selected, onSelect }: { item: FeedItem; selected: boolean; onSelect: () => void }) {
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <article className={`group relative overflow-hidden border-l-4 transition ${selected ? "border-[#54d4be] bg-[#3a2450] shadow-[0_0_0_1px_rgba(84,212,190,.42),0_15px_35px_rgba(0,0,0,.25)]" : "border-[#2b9e91] bg-[#251733] hover:bg-[#2c1b3d]"}`}>
       <button type="button" onClick={onSelect} aria-pressed={selected} aria-label={`${selected ? "ยกเลิกเลือก" : "เลือก"} ${item.headline}`} className="flex w-full items-stretch text-left">
-        <div className={`grid w-28 shrink-0 place-items-center sm:w-32 ${selected ? "bg-[#d8fff1]" : "bg-[#e5f5bc]"}`}>
-          <div className="grid size-14 place-items-center rounded-full border border-black/10 bg-white/70 text-sm font-black text-[#3c4e4a] shadow-inner">{sourceInitial(item.sourceName)}</div>
+        <div className={`relative grid w-28 shrink-0 place-items-center overflow-hidden sm:w-32 ${selected ? "bg-[#d8fff1]" : "bg-[#e5f5bc]"}`}>
+          {item.imageUrl && !imageFailed ? <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.imageUrl} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setImageFailed(true)} className="absolute inset-0 size-full object-cover" />
+          </> : <div className="grid size-14 place-items-center rounded-full border border-black/10 bg-white/70 text-sm font-black text-[#3c4e4a] shadow-inner">{sourceInitial(item.sourceName)}</div>}
+          {item.imageUrl && !imageFailed ? <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" /> : null}
         </div>
         <div className="min-w-0 flex-1 px-4 py-3">
           <div className="flex flex-wrap items-center gap-2 text-[8px] font-bold uppercase tracking-[.08em] text-[#a89bb7]">
@@ -192,6 +199,7 @@ export default function NewsroomDashboard() {
         category: item.category,
         headline: item.headline,
         summary: item.summary,
+        imageUrl: item.image_url,
         sourceName: item.source_name,
         sourceType: item.source_type,
         reporter: item.reporter,
@@ -264,8 +272,8 @@ export default function NewsroomDashboard() {
   const confirmSelection = () => {
     if (!selectedItem) return setToast("เลือกข่าวตั้งต้นก่อนกดยืนยัน");
     setAutoDraft({
-      id: Date.now(),
-      topic: `${selectedItem.headline}. ${selectedItem.summary}`,
+      id: selectedItem.id,
+      topic: `${selectedItem.headline}. ${selectedItem.summary.slice(0, 120)}`.slice(0, 240),
       selectedHeadlines: [selectedItem.headline],
       selectedFeedItemIds: [selectedItem.id],
     });

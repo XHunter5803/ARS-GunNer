@@ -177,7 +177,7 @@ export async function buildSemanticResearchBrief(options: {
           "Reports listed in seed_report_ids were explicitly selected by the editor. Keep them as source anchors, then add related reports that supply independent facts, context, or contradictions.",
           "Do not assume seed reports agree with one another and do not upgrade their evidence level.",
           "Use only the supplied reports. Never invent facts, quotes, numbers, dates, people, links, or sources.",
-          "Choose 2-8 reports that together provide enough important information for one original perspective article.",
+          "Choose 1-8 reports that together provide the important information for one original perspective article. If only the editor's seed report is relevant, keep it and clearly preserve the low evidence level.",
           "Do not copy sentences. Extract concise information in new wording and attach source_ids to every main point.",
           "A confirmed fact must come from an official source or be supported by at least two independent sources. Everything else is reported or inference.",
           "Keep interest, inquiry, negotiation, agreement, prediction, and confirmation at their original evidence level.",

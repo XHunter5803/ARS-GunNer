@@ -5,6 +5,7 @@ import { isSafePublicHttpsUrl } from "./security";
 export type ParsedFeedItem = {
   title: string;
   url: string;
+  imageUrl: string | null;
   reporter: string | null;
   publishedAt: string | null;
   rawText: string;
@@ -66,6 +67,34 @@ function resolveItemUrl(value: string, feedUrl: string) {
   }
 }
 
+function resolvePublicImageUrl(value: string, feedUrl: string) {
+  try {
+    const resolved = new URL(value, feedUrl);
+    return resolved.protocol === "https:" ? resolved.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+function mediaImageUrl(value: unknown, feedUrl: string) {
+  for (const media of toArray(value)) {
+    const record = asRecord(media);
+    const type = asText(record["@_type"] ?? record.type).toLowerCase();
+    const medium = asText(record["@_medium"] ?? record.medium).toLowerCase();
+    const candidate = asText(record["@_url"] ?? record.url ?? record["@_href"] ?? record.href);
+    if (candidate && (!type || type.startsWith("image/") || medium === "image")) {
+      const resolved = resolvePublicImageUrl(candidate, feedUrl);
+      if (resolved) return resolved;
+    }
+  }
+  return "";
+}
+
+function htmlImageUrl(value: string, feedUrl: string) {
+  const match = value.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+  return match?.[1] ? resolvePublicImageUrl(match[1], feedUrl) : "";
+}
+
 function detectLanguage(value: string): ParsedFeedItem["language"] {
   const thai = (value.match(/[ก-๙]/g) ?? []).length;
   const latin = (value.match(/[A-Za-z]/g) ?? []).length;
@@ -103,13 +132,20 @@ export function parseRssXml(xml: string, feedUrl: string): ParsedFeedItem[] {
     const rawUrl = asText(item.link) || atomLink(item.link) || asText(item.guid) || asText(item.id);
     const url = resolveItemUrl(rawUrl, feedUrl);
     if (!title || !url) return [];
-    const rawText = asText(item["content:encoded"] ?? item.content ?? item.description ?? item.summary).slice(0, 30_000);
-    const cleanText = cleanArticleText(rawText);
+    const articleMarkup = asText(item["content:encoded"] ?? item.content ?? item.description ?? item.summary).slice(0, 30_000);
+    const imageUrl = mediaImageUrl(item["media:content"], feedUrl)
+      || mediaImageUrl(item["media:thumbnail"], feedUrl)
+      || mediaImageUrl(item.enclosure, feedUrl)
+      || htmlImageUrl(articleMarkup, feedUrl)
+      || null;
+    const rawText = imageUrl ? `${articleMarkup}\n<!--ARS_IMAGE:${imageUrl}-->` : articleMarkup;
+    const cleanText = cleanArticleText(articleMarkup);
     const reporter = asText(item["dc:creator"] ?? item.author ?? item.creator).slice(0, 160) || null;
     const publishedAt = isoDate(asText(item.pubDate ?? item.published ?? item.updated ?? item.date));
     return [{
       title,
       url,
+      imageUrl,
       reporter,
       publishedAt,
       rawText,
@@ -154,7 +190,7 @@ export async function runRssIngestion(db: D1Database, limit = 8) {
       result.items_seen += items.length;
       if (items.length) {
         const statements = items.map((item) => db.prepare(
-          "INSERT INTO feed_items (source_id, canonical_url, headline, reporter, language, published_at, raw_text, clean_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(canonical_url) DO NOTHING",
+          "INSERT INTO feed_items (source_id, canonical_url, headline, reporter, language, published_at, raw_text, clean_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(canonical_url) DO UPDATE SET reporter = excluded.reporter, language = excluded.language, published_at = excluded.published_at, raw_text = excluded.raw_text, clean_text = excluded.clean_text, updated_at = CURRENT_TIMESTAMP",
         ).bind(source.id, item.url, item.title, item.reporter, item.language, item.publishedAt, item.rawText, item.cleanText));
         const batch = await db.batch(statements);
         result.items_inserted += batch.reduce((sum, entry) => sum + Number(entry.meta.changes ?? 0), 0);

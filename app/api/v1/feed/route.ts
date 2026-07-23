@@ -9,6 +9,18 @@ function categoryFor(headline: string): "Transfer" | "Club" | "League" {
   return "Club";
 }
 
+function imageUrlFromRaw(rawText: string) {
+  const marker = rawText.match(/<!--ARS_IMAGE:(https:\/\/[^\s>]+)-->/i)?.[1];
+  const html = rawText.match(/<img\b[^>]*\bsrc=["'](https:\/\/[^"']+)["']/i)?.[1];
+  const value = marker || html || "";
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const requestedLimit = Number(new URL(request.url).searchParams.get("limit") ?? 60);
@@ -19,6 +31,7 @@ export async function GET(request: Request) {
         id: feedItems.id,
         headline: feedItems.headline,
         summary: feedItems.cleanText,
+        rawText: feedItems.rawText,
         reporter: feedItems.reporter,
         language: feedItems.language,
         publishedAt: feedItems.publishedAt,
@@ -40,6 +53,7 @@ export async function GET(request: Request) {
         category: categoryFor(row.headline),
         headline: row.headline,
         summary: row.summary.slice(0, 600),
+        image_url: imageUrlFromRaw(row.rawText),
         reporter: row.reporter,
         language: row.language,
         published_at: row.publishedAt,

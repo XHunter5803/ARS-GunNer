@@ -381,6 +381,8 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
   const [articleId, setArticleId] = useState<number | null>(null);
   const [workflowStatus, setWorkflowStatus] = useState("waiting-research");
   const [working, setWorking] = useState(false);
+  const [draftError, setDraftError] = useState("");
+  const [lastDraftRequest, setLastDraftRequest] = useState<AutoDraftRequest | null>(null);
   const lastAutoDraftId = useRef<number | null>(null);
   const article = useMemo<ArticleDraft>(() => ({
     language,
@@ -415,6 +417,7 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
     const brandHashtags = hashtags.split(/\s+/).filter((item) => item.startsWith("#"));
     if (brandHashtags.length < 3) return notify("กรอก Hashtag อย่างน้อย 3 รายการ");
     setTopic(researchTopic);
+    setDraftError("");
     setWorking(true);
     setWorkflowStatus("semantic-research");
     try {
@@ -433,7 +436,9 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
       const payload = await response.json() as { data?: { article?: ArticleDraft; validation?: ValidationResult; research?: ResearchBriefView; selected_sources?: ResearchSourceView[] }; error?: { message?: string; details?: string[] } };
       if (!response.ok || !payload.data?.article || !payload.data.research) {
         setWorkflowStatus("research-needed");
-        return notify(payload.error?.message || "AI Research และสร้าง Draft ไม่สำเร็จ");
+        const message = payload.error?.message || "AI Research และสร้าง Draft ไม่สำเร็จ";
+        setDraftError(message);
+        return notify(message);
       }
       const draft = payload.data.article;
       setHeadline(draft.headline);
@@ -447,10 +452,13 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
       setValidation(payload.data.validation ?? null);
       setArticleId(null);
       setWorkflowStatus("ai-draft");
+      setDraftError("");
       notify(`รวมข้อมูลจาก ${payload.data.selected_sources?.length ?? 0} แหล่ง และสร้าง Draft แล้ว`);
     } catch {
       setWorkflowStatus("research-needed");
-      notify("เชื่อมต่อ AI Research ไม่สำเร็จ กรุณาลองใหม่");
+      const message = "เชื่อมต่อ Workers AI ไม่สำเร็จ กรุณาตรวจ AI binding แล้วลองใหม่";
+      setDraftError(message);
+      notify(message);
     } finally {
       setWorking(false);
     }
@@ -459,6 +467,7 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
   useEffect(() => {
     if (!autoDraft || lastAutoDraftId.current === autoDraft.id) return;
     lastAutoDraftId.current = autoDraft.id;
+    setLastDraftRequest(autoDraft);
     onAutoDraftConsumed?.();
     setWorkflowStatus("confirmed-selection");
     notify(`ยืนยัน ${autoDraft.selectedHeadlines.length} ข่าวแล้ว · กำลังสร้างบทความอัตโนมัติ`);
@@ -502,8 +511,9 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
         <div className="max-w-md">
           <div className="mx-auto grid size-16 place-items-center rounded-2xl bg-[#241432] text-white">{working ? <LoaderCircle className="size-7 animate-spin text-[#65ddcb]" /> : <Bot className="size-7 text-[#65ddcb]" />}</div>
           <h2 className="mt-5 text-xl font-extrabold">{working ? "AI กำลังสร้างบทความ" : "ยังไม่มีข่าวที่ยืนยัน"}</h2>
-          <p className="mt-3 text-xs leading-6 text-[#757d89]">{working ? "กำลังค้นข่าวที่เกี่ยวข้องด้วยความหมาย แยกข้อเท็จจริงและข้อกล่าวอ้าง แล้วเขียน Draft ตามรูปแบบมุมมอง" : workflowStatus === "research-needed" ? "สร้าง Draft ไม่สำเร็จ กรุณากลับไปเลือกข่าวจริงจาก News Inbox แล้วกดยืนยันใหม่" : "กลับไปที่ News Inbox เลือกข่าวตั้งต้นหนึ่งรายการ แล้วกด “ยืนยันและสร้าง Draft”"}</p>
+          <p className="mt-3 text-xs leading-6 text-[#757d89]">{working ? "กำลังค้นข่าวที่เกี่ยวข้องด้วยความหมาย แยกข้อเท็จจริงและข้อกล่าวอ้าง แล้วเขียน Draft ตามรูปแบบมุมมอง" : draftError || "กลับไปที่ News Inbox เลือกข่าวตั้งต้นหนึ่งรายการ แล้วกด “ยืนยันและสร้าง Draft”"}</p>
           <div className="mt-5 flex justify-center gap-2">{["ค้นข่าวเกี่ยวข้อง", "ตรวจหลักฐาน", "สร้างบทความ"].map((step, index) => <span key={step} className={`rounded-full px-3 py-1.5 text-[9px] font-bold ${working && index === 0 ? "bg-[#65ddcb] text-[#17332f]" : "bg-[#f0edf3] text-[#7a7182]"}`}>{step}</span>)}</div>
+          {draftError && lastDraftRequest ? <button type="button" onClick={() => void researchAndBuildDraft(lastDraftRequest.topic, lastDraftRequest.selectedFeedItemIds)} disabled={working} className="mt-5 rounded-xl bg-[#241432] px-5 py-3 text-[10px] font-bold text-white disabled:opacity-50">ลองสร้าง Draft อีกครั้ง</button> : null}
         </div>
       </section>
     );

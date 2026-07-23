@@ -32,8 +32,8 @@ export async function POST(request: Request) {
     if (!input.category?.trim() || !input.signature?.trim()) return apiError(400, "VALIDATION_ERROR", "category และ signature ห้ามว่าง");
     if (!Array.isArray(input.brand_hashtags) || input.brand_hashtags.length < 3 || input.brand_hashtags.length > 8) return apiError(400, "VALIDATION_ERROR", "brand_hashtags ต้องมี 3–8 รายการ");
     const anchorIds = [...new Set(input.selected_feed_item_ids ?? [])];
-    if (anchorIds.length > 3 || !anchorIds.every((id) => Number.isInteger(id) && id > 0)) {
-      return apiError(400, "VALIDATION_ERROR", "selected_feed_item_ids ต้องเป็นรหัสข่าวจริง 1–3 รายการ");
+    if (anchorIds.length !== 1 || !anchorIds.every((id) => Number.isInteger(id) && id > 0)) {
+      return apiError(400, "VALIDATION_ERROR", "ต้องเลือกข่าวตั้งต้นจริง 1 รายการจาก News Inbox");
     }
 
     const { env } = await import("cloudflare:workers") as unknown as { env: RuntimeBindings };
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       }))
       .filter((candidate) => candidate.headline.trim() && candidate.url.trim());
 
-    if (candidates.length < 2) return apiError(422, "INSUFFICIENT_NEWS", "ยังมีข่าวใน D1 ไม่พอ กรุณา Sync RSS ก่อนค้นหา");
+    if (candidates.length < 1) return apiError(422, "INSUFFICIENT_NEWS", "ยังไม่มีข่าวใน D1 กรุณา Sync RSS ก่อนสร้าง Draft");
     if (anchorIds.some((id) => !candidates.some((candidate) => candidate.id === id))) {
       return apiError(404, "SELECTED_NEWS_NOT_FOUND", "ไม่พบข่าวที่เลือกใน D1 กรุณารีเฟรช Dashboard แล้วเลือกใหม่");
     }
@@ -81,8 +81,8 @@ export async function POST(request: Request) {
     const generationModel = env.WORKERS_AI_MODEL || "@cf/zai-org/glm-4.7-flash";
     const rerankerModel = env.WORKERS_AI_RERANKER_MODEL || "@cf/baai/bge-reranker-base";
     const research = await buildSemanticResearchBrief({ ai: env.AI, generationModel, rerankerModel, keyword, candidates, anchorIds });
-    if (research.selected.length < 2) {
-      return apiError(422, "INSUFFICIENT_RELATED_SOURCES", "AI พบแหล่งข่าวที่เกี่ยวข้องน้อยกว่า 2 แหล่ง จึงยังไม่สร้าง Draft เพื่อป้องกันข้อมูลไม่ครบ");
+    if (research.selected.length < 1) {
+      return apiError(422, "INSUFFICIENT_RELATED_SOURCES", "AI ไม่พบข่าวตั้งต้นที่ใช้สร้าง Draft");
     }
 
     const selectedSources: NewsSourceInput[] = research.selected.map((candidate) => {
