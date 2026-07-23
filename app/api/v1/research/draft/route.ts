@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../../../db";
 import { feedItems, sources } from "../../../../../db/schema";
 import { apiError, apiJson, databaseError, readJson } from "../../../../../lib/api-response";
-import { generatePerspectiveArticle } from "../../../../../lib/article-generation";
+import { buildGroundedFallbackArticle, generatePerspectiveArticle } from "../../../../../lib/article-generation";
 import type { GeneratePerspectiveInput } from "../../../../../lib/article-generation";
 import { isFootballReport } from "../../../../../lib/football-filter";
 import { buildSemanticResearchBrief } from "../../../../../lib/semantic-research";
@@ -131,8 +131,17 @@ export async function POST(request: Request) {
     try {
       generated = await generatePerspectiveArticle(env.AI, generationModel, generationInput);
     } catch (error) {
-      if (!isDraftShapeError(error) || generationModel === researchModel) throw error;
-      generated = await generatePerspectiveArticle(env.AI, researchModel, generationInput);
+      if (!isDraftShapeError(error)) throw error;
+      if (generationModel === researchModel) {
+        generated = buildGroundedFallbackArticle(generationInput, error instanceof Error ? error.message : "AI_DRAFT_INVALID");
+      } else {
+        try {
+          generated = await generatePerspectiveArticle(env.AI, researchModel, generationInput);
+        } catch (fallbackError) {
+          if (!isDraftShapeError(fallbackError)) throw fallbackError;
+          generated = buildGroundedFallbackArticle(generationInput, fallbackError instanceof Error ? fallbackError.message : "AI_DRAFT_INVALID");
+        }
+      }
     }
 
     return apiJson({
@@ -148,6 +157,7 @@ export async function POST(request: Request) {
       })),
       article: generated.article,
       validation: generated.validation,
+      recovery: generated.recovery,
       models: { reranker: rerankerModel, research: researchModel, writer: generated.model, requested_writer: generationModel },
     }, { status: 201 });
   } catch (error) {

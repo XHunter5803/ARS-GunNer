@@ -1,13 +1,19 @@
-# ARS GunNer v0.8.3 — Football-Only News Scope
+# ARS GunNer v0.8.4 — Draft Completion Guarantee
 
 1. Close the running development server.
 2. Extract this ZIP.
 3. Copy every extracted file and folder into the root of your existing `ARS-GunNer` repository.
 4. Allow Windows to replace files with the same names. Keep the nested folder structure.
-5. In GitHub Desktop, confirm the changed files, use summary `Filter newsroom to football-only coverage`, then commit and push to `main`.
+5. In GitHub Desktop, confirm the changed files, use summary `Guarantee complete Draft after AI JSON failure`, then commit and push to `main`.
 6. Cloudflare Workers Builds should deploy automatically.
 
 No new D1 migration is required for this update.
+
+## Draft completion guarantee
+
+The writer first uses the required JSON Schema. If the model returns malformed JSON, the second attempt switches to a plain-text marker protocol that does not depend on JSON support. If both the configured writer and the research model still return an unusable shape, the server constructs a complete 5–7 paragraph Article Pattern Draft from the verified Research Brief and attached sources.
+
+The final fallback never invents new facts, is labeled `Grounded fallback · review required`, caps readiness below 85, and cannot be approved until a Human Editor reviews and revises it.
 
 ## Football-only filter
 

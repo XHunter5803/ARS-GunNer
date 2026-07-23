@@ -445,6 +445,7 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
   const [workflowStatus, setWorkflowStatus] = useState("waiting-research");
   const [working, setWorking] = useState(false);
   const [draftError, setDraftError] = useState("");
+  const [draftRecovery, setDraftRecovery] = useState<"ai" | "grounded_fallback">("ai");
   const [lastDraftRequest, setLastDraftRequest] = useState<AutoDraftRequest | null>(null);
   const lastAutoDraftId = useRef<number | null>(null);
   const article = useMemo<ArticleDraft>(() => ({
@@ -496,7 +497,7 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
           brand_hashtags: brandHashtags,
         }),
       });
-      const payload = await response.json() as { data?: { article?: ArticleDraft; validation?: ValidationResult; research?: ResearchBriefView; selected_sources?: ResearchSourceView[] }; error?: { message?: string; details?: string[] } };
+      const payload = await response.json() as { data?: { article?: ArticleDraft; validation?: ValidationResult; research?: ResearchBriefView; selected_sources?: ResearchSourceView[]; recovery?: { mode?: "ai" | "grounded_fallback" } }; error?: { message?: string; details?: string[] } };
       if (!response.ok || !payload.data?.article || !payload.data.research) {
         setWorkflowStatus("research-needed");
         const message = payload.error?.message || "AI Research และสร้าง Draft ไม่สำเร็จ";
@@ -513,10 +514,13 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
       setResearch(payload.data.research);
       setResearchSources(payload.data.selected_sources ?? []);
       setValidation(payload.data.validation ?? null);
+      setDraftRecovery(payload.data.recovery?.mode ?? "ai");
       setArticleId(null);
       setWorkflowStatus("ai-draft");
       setDraftError("");
-      notify(`รวมข้อมูลจาก ${payload.data.selected_sources?.length ?? 0} แหล่ง และสร้าง Draft แล้ว`);
+      notify(payload.data.recovery?.mode === "grounded_fallback"
+        ? `สร้าง Draft จากหลักฐาน ${payload.data.selected_sources?.length ?? 0} แหล่งแล้ว · ต้องให้ Human Editor ตรวจ`
+        : `รวมข้อมูลจาก ${payload.data.selected_sources?.length ?? 0} แหล่ง และสร้าง Draft แล้ว`);
     } catch {
       setWorkflowStatus("research-needed");
       const message = "เชื่อมต่อ Workers AI ไม่สำเร็จ กรุณาตรวจ AI binding แล้วลองใหม่";
@@ -587,7 +591,7 @@ function ArticleWorkspace({ notify, autoDraft, onAutoDraftConsumed }: { notify: 
       <article className="rounded-[22px] border border-[#e3dee8] bg-white p-5 shadow-[0_12px_35px_rgba(31,20,45,.06)] sm:p-7">
         <div className="flex flex-col gap-3 border-b border-[#ece7ef] pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#2f8f82]">Article Pattern · มุมมอง/บทวิเคราะห์</p><h2 className="mt-1 flex items-center gap-2 text-lg font-extrabold"><BookOpenCheck className="size-5 text-[#2f8f82]" />Article Editor</h2></div>
-          <div className="flex flex-wrap gap-2"><span className="rounded-full bg-[#e8f8f3] px-3 py-1.5 text-[9px] font-bold text-[#26795f]">{researchSources.length} sources attached</span><span className="rounded-full bg-[#f0edf3] px-3 py-1.5 text-[9px] font-bold text-[#6f6577]">{workflowStatus}</span></div>
+          <div className="flex flex-wrap gap-2"><span className="rounded-full bg-[#e8f8f3] px-3 py-1.5 text-[9px] font-bold text-[#26795f]">{researchSources.length} sources attached</span>{draftRecovery === "grounded_fallback" ? <span className="rounded-full bg-[#fff3df] px-3 py-1.5 text-[9px] font-bold text-[#94601e]">Grounded fallback · review required</span> : null}<span className="rounded-full bg-[#f0edf3] px-3 py-1.5 text-[9px] font-bold text-[#6f6577]">{workflowStatus}</span></div>
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-[140px_1fr]">

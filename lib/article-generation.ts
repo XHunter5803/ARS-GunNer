@@ -62,6 +62,49 @@ function extractDraft(output: unknown) {
   return parseJsonObject(extractText(output));
 }
 
+function parseLineDraft(output: unknown) {
+  const direct = draftObject(output);
+  if (direct) return direct;
+  const text = extractText(output).replace(/\r/g, "").trim();
+  if (!text) throw new Error("AI_LINE_DRAFT_MISSING");
+
+  let headline = "";
+  let closingQuestion = "";
+  const paragraphs = new Map<number, string>();
+  let activeField: { kind: "headline" | "paragraph" | "closing"; index?: number } | null = null;
+
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.trim();
+    if (!line || /^```/.test(line)) continue;
+    const headlineMatch = line.match(/^HEADLINE\s*[:=-]\s*(.+)$/i);
+    const paragraphMatch = line.match(/^P([1-7])\s*[:=-]\s*(.+)$/i);
+    const closingMatch = line.match(/^CLOSING(?:_QUESTION)?\s*[:=-]\s*(.+)$/i);
+    if (headlineMatch) {
+      headline = headlineMatch[1].trim();
+      activeField = { kind: "headline" };
+    } else if (paragraphMatch) {
+      const index = Number(paragraphMatch[1]);
+      paragraphs.set(index, paragraphMatch[2].trim());
+      activeField = { kind: "paragraph", index };
+    } else if (closingMatch) {
+      closingQuestion = closingMatch[1].trim();
+      activeField = { kind: "closing" };
+    } else if (activeField?.kind === "headline") {
+      headline = `${headline} ${line}`.trim();
+    } else if (activeField?.kind === "closing") {
+      closingQuestion = `${closingQuestion} ${line}`.trim();
+    } else if (activeField?.kind === "paragraph" && activeField.index) {
+      paragraphs.set(activeField.index, `${paragraphs.get(activeField.index) ?? ""} ${line}`.trim());
+    }
+  }
+
+  return {
+    headline,
+    paragraphs: [...paragraphs.entries()].sort(([a], [b]) => a - b).map(([, paragraph]) => paragraph),
+    closing_question: closingQuestion,
+  } satisfies Partial<PerspectiveArticle>;
+}
+
 function parseJsonObject(value: string) {
   const clean = value.replace(/^\uFEFF/, "").replace(/^```(?:json)?\s*/i, "").replace(/\s*```[\s\S]*$/i, "").trim();
   if (!clean) throw new Error("AI_JSON_MISSING");
@@ -168,47 +211,14 @@ function incompleteDraftFields(draft: Partial<PerspectiveArticle>) {
   return missing;
 }
 
-export async function generatePerspectiveArticle(ai: WorkersAi, model: string, input: GeneratePerspectiveInput) {
-  const { analysis, messages } = promptFor(input);
-  const runDraft = async (retryReason = "") => {
-    const retryMessage = retryReason
-      ? [{ role: "user", content: `${retryReason} Regenerate the full article. Return exactly one complete JSON object matching the required schema, without Markdown or explanations.` }]
-      : [];
-    const output = await ai.run(model, {
-      messages: [...messages, ...retryMessage],
-      response_format: {
-        type: "json_schema",
-        json_schema: articleDraftSchema,
-      },
-      temperature: 0.1,
-      max_tokens: 3_500,
-    });
-    return extractDraft(output);
-  };
-
-  let draft: Partial<PerspectiveArticle> | null = null;
-  let missingFields: string[] = [];
-  let retryReason = "";
-  let lastShapeError = "AI_JSON_INVALID";
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      draft = await runDraft(retryReason);
-      missingFields = incompleteDraftFields(draft);
-      if (!missingFields.length) break;
-      lastShapeError = `AI_DRAFT_INCOMPLETE:${missingFields.join("|")}`;
-      retryReason = `The previous response was incomplete. It was missing or invalid: ${missingFields.join(", ")}.`;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "";
-      if (!message.includes("AI_JSON")) throw error;
-      lastShapeError = message || "AI_JSON_INVALID";
-      retryReason = "The previous response was not valid JSON.";
-    }
-  }
-  if (!draft || missingFields.length) throw new Error(lastShapeError);
+function articleFromDraft(
+  input: GeneratePerspectiveInput,
+  analysis: ReturnType<typeof analyzeSources>,
+  draft: Partial<PerspectiveArticle>,
+) {
   if (!analysis.main_source) throw new Error("MAIN_SOURCE_MISSING");
-
   const main = analysis.main_source;
-  const article: PerspectiveArticle = {
+  return {
     language: input.language,
     pattern: "perspective",
     category: input.category.trim(),
@@ -223,7 +233,133 @@ export async function generatePerspectiveArticle(ai: WorkersAi, model: string, i
     confirmed_facts: analysis.confirmed_facts,
     reported_claims: analysis.reported_claims,
     conflicts: input.research_brief?.conflicts?.map((item) => cleanArticleText(item)).filter(Boolean).slice(0, 12) ?? analysis.conflicts,
+  } satisfies PerspectiveArticle;
+}
+
+function evidenceText(input: GeneratePerspectiveInput, language: "th" | "en") {
+  const points = input.research_brief?.main_points.map((point) => cleanArticleText(point.text)).filter(Boolean) ?? [];
+  const languagePoints = points.filter((point) => language === "th" ? /[ก-๙]/.test(point) : /[A-Za-z]/.test(point) && !/[ก-๙]/.test(point));
+  return languagePoints.slice(0, 4);
+}
+
+function groundedFallbackDraft(input: GeneratePerspectiveInput): Partial<PerspectiveArticle> {
+  const topic = cleanArticleText(input.research_brief?.topic ?? "").slice(0, 180);
+  const thaiPoints = evidenceText(input, "th");
+  const englishPoints = evidenceText(input, "en");
+  const thaiTopic = /[ก-๙]/.test(topic) ? topic : "ประเด็นข่าวฟุตบอลที่เลือก";
+  const englishTopic = topic && !/[ก-๙]/.test(topic) ? topic : "the selected football story";
+  const thaiPoint = (index: number, fallback: string) => thaiPoints[index] || fallback;
+  const englishPoint = (index: number, fallback: string) => englishPoints[index] || fallback;
+
+  const thai = {
+    headline: `เมื่อหลักฐานเกี่ยวกับ${thaiTopic}ยังต้องตรวจสอบหลายด้าน จึงต้องประเมินทิศทางจากข้อมูลที่ยืนยันได้`,
+    paragraphs: [
+      `สถานการณ์ตั้งต้นของข่าวนี้อ้างอิงจากแหล่งข้อมูลที่ระบบรวบรวมไว้ โดยข้อมูลสำคัญที่ตรวจพบคือ ${thaiPoint(0, "มีรายงานเกี่ยวกับเหตุการณ์ดังกล่าว แต่รายละเอียดบางส่วนยังต้องติดตามจากต้นทาง")}`,
+      `กระแสเดิมยังถูกพูดถึงผ่านรายงานที่เกี่ยวข้อง ขณะที่ ${thaiPoint(1, "ข้อมูลจากแต่ละแหล่งมีน้ำหนักและรายละเอียดไม่เท่ากัน จึงต้องแยกข้อเท็จจริงออกจากข้อกล่าวอ้าง")}`,
+      `แม้จะมีกระแสว่าทิศทางของเรื่องอาจชัดเจนแล้ว แต่ ${thaiPoint(2, "หลักฐานปัจจุบันยังไม่เพียงพอให้ยกระดับการคาดการณ์เป็นข้อยืนยัน")}`,
+      `ข้อจำกัดสำคัญอยู่ที่จำนวนแหล่งอิสระ วันที่เผยแพร่ และระดับของข้อมูลต้นทาง โดย ${thaiPoint(3, "ประเด็นที่ยังไม่มีหลักฐานรองรับต้องคงสถานะเป็นรายงานหรือข้อสังเกตเท่านั้น")}`,
+      "จากข้อมูลปัจจุบัน แนวทางที่เหมาะสมที่สุดคือยึดสิ่งที่ตรวจสอบได้เป็นหลัก และติดตามข้อมูลเพิ่มเติมก่อนสรุปทิศทางแบบเด็ดขาด",
+    ],
+    closing_question: "สุดท้ายหลักฐานใหม่จะยืนยันแนวโน้มเดิม หรือสถานการณ์จะเปลี่ยนไปอีกทางกันแน่...",
   };
+  const english = {
+    headline: `When the evidence around ${englishTopic} remains incomplete, the likely direction must be assessed through verified reporting`,
+    paragraphs: [
+      `The current situation is based on the sources gathered by the newsroom. The clearest available point is that ${englishPoint(0, "the story has been reported, while some details still require confirmation from the original source")}`,
+      `Previous coverage continues to shape the discussion, while ${englishPoint(1, "the available reports carry different levels of detail and evidential weight")}`,
+      `Although one line of reporting may suggest that the direction is already clear, ${englishPoint(2, "the current evidence does not justify turning a possibility into a confirmed outcome")}`,
+      `The main constraints are the number of independent sources, publication details, and the status of the original information. ${englishPoint(3, "Any point without sufficient support must remain a reported claim or analysis")}`,
+      "Based on the current sources, the most defensible direction is to retain only what can be verified and wait for further evidence before reaching a firm conclusion.",
+    ],
+    closing_question: "Will new evidence confirm the current direction, or will the situation move another way?",
+  };
+
+  if (input.language === "th") return thai;
+  if (input.language === "en") return english;
+  return {
+    headline: thai.headline,
+    paragraphs: [
+      ...thai.paragraphs.slice(0, 4),
+      `Perspective: ${english.headline}\n${english.paragraphs[0]}`,
+      english.paragraphs[2],
+      english.paragraphs[4],
+    ],
+    closing_question: `${thai.closing_question}\n${english.closing_question}`,
+  };
+}
+
+export function buildGroundedFallbackArticle(input: GeneratePerspectiveInput, fallbackReason = "AI_JSON_INVALID") {
+  const analysis = analyzeSources(input.sources);
+  const draft = groundedFallbackDraft(input);
+  const article = articleFromDraft(input, analysis, draft);
+  const baseValidation = validatePerspectiveArticle(article);
+  const readinessScore = Math.min(baseValidation.readiness_score, 84);
+  const validation = {
+    ...baseValidation,
+    readiness_score: readinessScore,
+    status: readinessScore >= 70 ? "review" : readinessScore >= 50 ? "needs_sources" : "blocked",
+    readiness_notes: [
+      "ใช้ Server Grounded Fallback เพราะ AI ส่งรูปแบบ Draft ไม่สมบูรณ์: ต้องให้ Human Editor ตรวจข้อความก่อนอนุมัติ",
+      ...baseValidation.readiness_notes,
+    ],
+  };
+  return {
+    article,
+    validation,
+    model: "server-grounded-fallback",
+    source_analysis: analysis,
+    recovery: { mode: "grounded_fallback", reason: fallbackReason },
+  };
+}
+
+export async function generatePerspectiveArticle(ai: WorkersAi, model: string, input: GeneratePerspectiveInput) {
+  const { analysis, messages } = promptFor(input);
+  const runDraft = async (retryReason = "", lineProtocol = false) => {
+    const retryMessage = retryReason
+      ? [{
+        role: "user",
+        content: lineProtocol
+          ? `${retryReason} Regenerate the full article without JSON. Use exactly these plain-text markers: HEADLINE:, P1:, P2:, P3:, P4:, P5:, and CLOSING:. You may add P6: or P7:. Do not use Markdown or any other labels.`
+          : `${retryReason} Regenerate the full article. Return exactly one complete JSON object matching the required schema, without Markdown or explanations.`,
+      }]
+      : [];
+    const request: Record<string, unknown> = {
+      messages: [...messages, ...retryMessage],
+      temperature: 0.1,
+      max_tokens: 3_500,
+    };
+    if (!lineProtocol) {
+      request.response_format = {
+        type: "json_schema",
+        json_schema: articleDraftSchema,
+      };
+    }
+    const output = await ai.run(model, request);
+    return lineProtocol ? parseLineDraft(output) : extractDraft(output);
+  };
+
+  let draft: Partial<PerspectiveArticle> | null = null;
+  let missingFields: string[] = [];
+  let retryReason = "";
+  let lastShapeError = "AI_JSON_INVALID";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      draft = attempt === 0
+        ? await runDraft()
+        : await runDraft(retryReason || "The previous response could not be used.", true);
+      missingFields = incompleteDraftFields(draft);
+      if (!missingFields.length) break;
+      lastShapeError = `AI_DRAFT_INCOMPLETE:${missingFields.join("|")}`;
+      retryReason = `The previous response was incomplete. It was missing or invalid: ${missingFields.join(", ")}.`;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes("AI_JSON")) throw error;
+      lastShapeError = message || "AI_JSON_INVALID";
+      retryReason = "The previous response was not valid JSON.";
+    }
+  }
+  if (!draft || missingFields.length) throw new Error(lastShapeError);
+  const article = articleFromDraft(input, analysis, draft);
   const validation = validatePerspectiveArticle(article);
-  return { article, validation, model, source_analysis: analysis };
+  return { article, validation, model, source_analysis: analysis, recovery: { mode: "ai" as const } };
 }

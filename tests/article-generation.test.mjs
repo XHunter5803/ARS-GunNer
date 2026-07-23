@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { generatePerspectiveArticle } from "../lib/article-generation.ts";
+import { buildGroundedFallbackArticle, generatePerspectiveArticle } from "../lib/article-generation.ts";
 
 const input = {
   language: "th",
@@ -75,4 +75,39 @@ test("extracts one balanced JSON object when the model adds prose", async () => 
 
   assert.equal(result.article.headline, completeDraft.headline);
   assert.equal(result.article.closing_question, completeDraft.closing_question);
+});
+
+test("recovers with plain-text line protocol when JSON cannot be parsed", async () => {
+  let calls = 0;
+  const ai = {
+    async run(_model, request) {
+      calls += 1;
+      if (calls === 1) return { response: "{broken json" };
+      assert.equal(request.response_format, undefined);
+      return {
+        response: [
+          `HEADLINE: ${completeDraft.headline}`,
+          ...completeDraft.paragraphs.map((paragraph, index) => `P${index + 1}: ${paragraph}`),
+          `CLOSING: ${completeDraft.closing_question}`,
+        ].join("\n"),
+      };
+    },
+  };
+
+  const result = await generatePerspectiveArticle(ai, "@cf/test/writer", input);
+
+  assert.equal(calls, 2);
+  assert.equal(result.article.paragraphs.length, 5);
+  assert.equal(result.recovery.mode, "ai");
+});
+
+test("builds a complete grounded fallback and requires human review", () => {
+  const result = buildGroundedFallbackArticle(input, "AI_JSON_INVALID");
+
+  assert.equal(result.model, "server-grounded-fallback");
+  assert.equal(result.recovery.mode, "grounded_fallback");
+  assert.equal(result.article.paragraphs.length, 5);
+  assert.equal(result.validation.valid, true);
+  assert.ok(result.validation.readiness_score < 85);
+  assert.match(result.validation.readiness_notes[0], /Human Editor/);
 });

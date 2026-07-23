@@ -2,8 +2,9 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.8.3 capabilities
+## Version 0.8.4 capabilities
 
+- Draft completion guarantee: JSON Schema is attempted first, a plain-text line protocol recovers models that cannot return valid JSON, and a server-grounded fallback opens a complete review-only Draft if both writer models still fail
 - Football-only scope across RSS ingestion, the live Dashboard, AI research candidates, and daily Reporter/outlet suggestions; other sports, gambling content, and promotional ticket/package posts are rejected
 - Multi-source RSS recovery: adding a Source immediately ingests that feed, failed feeds remain retryable, and fair scheduling prevents older sources from permanently blocking newer ones
 - Source Registry health details with last-fetch time, readable RSS errors, and per-source retry/sync controls
@@ -129,7 +130,7 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.8.3 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.8.4 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 

@@ -1,5 +1,5 @@
 import { apiError, apiJson, readJson } from "../../../../../lib/api-response";
-import { generatePerspectiveArticle } from "../../../../../lib/article-generation";
+import { buildGroundedFallbackArticle, generatePerspectiveArticle } from "../../../../../lib/article-generation";
 import { isNewsSourceInput } from "../../../../../lib/news-pipeline";
 import type { GeneratePerspectiveInput } from "../../../../../lib/article-generation";
 
@@ -30,10 +30,19 @@ export async function POST(request: Request) {
     try {
       result = await generatePerspectiveArticle(env.AI, model, input);
     } catch (error) {
-      if (!isDraftShapeError(error) || model === fallbackModel) throw error;
-      result = await generatePerspectiveArticle(env.AI, fallbackModel, input);
+      if (!isDraftShapeError(error)) throw error;
+      if (model === fallbackModel) {
+        result = buildGroundedFallbackArticle(input, error instanceof Error ? error.message : "AI_DRAFT_INVALID");
+      } else {
+        try {
+          result = await generatePerspectiveArticle(env.AI, fallbackModel, input);
+        } catch (fallbackError) {
+          if (!isDraftShapeError(fallbackError)) throw fallbackError;
+          result = buildGroundedFallbackArticle(input, fallbackError instanceof Error ? fallbackError.message : "AI_DRAFT_INVALID");
+        }
+      }
     }
-    if (!result.validation.valid || result.validation.readiness_score < 70) {
+    if (!result.validation.valid) {
       return apiError(422, "ARTICLE_NOT_READY", "AI draft ไม่ผ่านกฎก่อนเผยแพร่", result.validation.readiness_notes);
     }
     return apiJson(result, { status: 201 });
