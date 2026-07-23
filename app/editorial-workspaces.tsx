@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   Bot,
+  BookOpenCheck,
   CalendarDays,
   Check,
   CheckCircle2,
@@ -12,6 +13,7 @@ import {
   Globe2,
   Languages,
   Link2,
+  Lightbulb,
   LoaderCircle,
   MessageCircle,
   Plus,
@@ -23,6 +25,7 @@ import {
   ThumbsUp,
   Trash2,
   UserCheck,
+  WandSparkles,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -38,6 +41,16 @@ type Favorite = {
   demo?: boolean;
 };
 
+type DailySuggestion = {
+  kind: "outlet" | "reporter";
+  value: string;
+  label: string;
+  score: number;
+  article_count: number;
+  last_seen: string | null;
+  reason: string;
+};
+
 type Source = {
   id: number;
   name: string;
@@ -47,17 +60,6 @@ type Source = {
   reliabilityWeight: number;
   status: "active" | "paused" | "error";
   demo?: boolean;
-};
-
-export type SelectedNewsSource = {
-  id: number;
-  headline: string;
-  canonical_url: string;
-  reporter: string | null;
-  published_at: string | null;
-  clean_text: string;
-  source_name: string | null;
-  source_type: string | null;
 };
 
 type ValidationResult = {
@@ -93,8 +95,6 @@ const factGroups = {
   ],
 };
 
-const emptyParagraphs = ["", "", "", "", ""];
-
 function StatusBanner({ mode, message }: { mode: "loading" | "live" | "demo" | "error"; message: string }) {
   const style = mode === "live" ? "bg-[#eaf9f2] text-[#247a5e]" : mode === "error" ? "bg-[#fff0f1] text-[#b8343d]" : "bg-[#fff5dd] text-[#8d6414]";
   return (
@@ -111,6 +111,9 @@ function FavoritesWorkspace({ notify }: { notify: (message: string) => void }) {
   const [value, setValue] = useState("");
   const [mode, setMode] = useState<"loading" | "live" | "demo" | "error">("loading");
   const [message, setMessage] = useState("กำลังตรวจ D1...");
+  const [suggestions, setSuggestions] = useState<DailySuggestion[]>([]);
+  const [suggestionDay, setSuggestionDay] = useState("");
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -128,6 +131,19 @@ function FavoritesWorkspace({ notify }: { notify: (message: string) => void }) {
         setMode("demo");
         setMessage("แสดงข้อมูล Demo · D1 จะพร้อมหลัง Migration ถูกใช้งาน");
       });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/v1/suggestions", { headers: { accept: "application/json" } })
+      .then(async (response) => {
+        const payload = await response.json() as { data?: { day?: string; suggestions?: { reporters?: DailySuggestion[]; outlets?: DailySuggestion[] } } };
+        if (!active || !response.ok) return;
+        setSuggestionDay(payload.data?.day ?? "");
+        setSuggestions([...(payload.data?.suggestions?.reporters ?? []), ...(payload.data?.suggestions?.outlets ?? [])]);
+      })
+      .finally(() => { if (active) setSuggestionsLoading(false); });
     return () => { active = false; };
   }, []);
 
@@ -169,6 +185,20 @@ function FavoritesWorkspace({ notify }: { notify: (message: string) => void }) {
     notify("ลบรายการติดตามแล้ว");
   };
 
+  const keepSuggestion = async (item: DailySuggestion) => {
+    if (mode !== "live") return notify("D1 ยังไม่พร้อม จึงยังเก็บรายการแนะนำไม่ได้");
+    const response = await fetch("/api/v1/favorites", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: item.kind, value: item.value, label: item.label }),
+    });
+    const payload = await response.json() as { data?: { favorite?: Favorite }; error?: { message?: string } };
+    if (!response.ok || !payload.data?.favorite) return notify(payload.error?.message || "เก็บรายการแนะนำไม่สำเร็จ");
+    setFavorites((items) => [payload.data!.favorite!, ...items]);
+    setSuggestions((items) => items.filter((suggestion) => !(suggestion.kind === item.kind && suggestion.value === item.value)));
+    notify(`เก็บ ${item.label} ไว้ใน Favorites แล้ว`);
+  };
+
   return (
     <section className="grid gap-4 xl:grid-cols-[.8fr_1.2fr]">
       <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
@@ -201,6 +231,23 @@ function FavoritesWorkspace({ notify }: { notify: (message: string) => void }) {
               <button type="button" onClick={() => void removeFavorite(item)} aria-label={`ลบ ${item.label}`} className="grid size-8 place-items-center rounded-lg text-[#a1a5ad] hover:bg-[#fff0f1] hover:text-[#d83b45]"><Trash2 className="size-4" /></button>
             </div>
           )) : <div className="grid min-h-44 place-items-center rounded-xl border border-dashed border-[#ddd8cf] text-center"><div><Search className="mx-auto size-6 text-[#a4a8af]" /><p className="mt-2 text-xs font-bold text-[#565e6a]">ยังไม่มีรายการติดตาม</p></div></div>}
+        </div>
+      </article>
+
+      <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)] xl:col-span-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Daily discovery · {suggestionDay || "Today"}</p><h2 className="mt-1 flex items-center gap-2 text-lg font-extrabold text-[#1c2537]"><Lightbulb className="size-5 text-[#d99020]" />Reporter & สำนักข่าวแนะนำ</h2></div>
+          <span className="rounded-full bg-[#fff5dd] px-3 py-1.5 text-[9px] font-bold text-[#8d6414]">อัปเดตจากข่าว 14 วันล่าสุด</span>
+        </div>
+        <p className="mt-2 text-[10px] leading-5 text-[#7b818c]">ระบบเสนอชื่อใหม่ที่ยังไม่อยู่ใน Favorites โดยดูจากความถี่ ความใหม่ และน้ำหนักความน่าเชื่อถือของ RSS</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {suggestionsLoading ? <div className="md:col-span-2 xl:col-span-3"><StatusBanner mode="loading" message="กำลังสร้างรายการแนะนำประจำวัน..." /></div> : suggestions.length ? suggestions.map((item) => (
+            <div key={`${item.kind}-${item.value}`} className="rounded-xl border border-[#e8e4dd] bg-[#fffefa] p-4">
+              <div className="flex items-start gap-3"><div className={`grid size-10 shrink-0 place-items-center rounded-xl ${item.kind === "reporter" ? "bg-[#edf9f4] text-[#268064]" : "bg-[#edf4ff] text-[#3e6cc2]"}`}>{item.kind === "reporter" ? <UserCheck className="size-4" /> : <Globe2 className="size-4" />}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-extrabold text-[#283143]">{item.label}</p><p className="mt-0.5 text-[9px] font-bold uppercase tracking-[.1em] text-[#9a9fa8]">{item.kind} · score {item.score}</p></div></div>
+              <p className="mt-3 min-h-10 text-[10px] leading-5 text-[#777e89]">{item.reason}</p>
+              <button type="button" onClick={() => void keepSuggestion(item)} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#18243a] px-3 py-2.5 text-[10px] font-bold text-white"><Plus className="size-3.5" />Keep in Favorites</button>
+            </div>
+          )) : <div className="md:col-span-2 xl:col-span-3 rounded-xl border border-dashed border-[#ddd8cf] px-4 py-8 text-center text-xs text-[#7e8490]">ยังไม่มีชื่อใหม่ให้แนะนำ หรือทั้งหมดถูกเก็บไว้ใน Favorites แล้ว</div>}
         </div>
       </article>
     </section>
@@ -283,46 +330,71 @@ function FactCheckWorkspace({ notify }: { notify: (message: string) => void }) {
   );
 }
 
-function ArticleWorkspace({ notify, selectedNews }: { notify: (message: string) => void; selectedNews: SelectedNewsSource[] }) {
+type ArticleDraft = {
+  language: "th" | "en" | "bilingual";
+  pattern: "perspective";
+  category: string;
+  label: string;
+  headline: string;
+  paragraphs: string[];
+  closing_question: string;
+  signature: string;
+  hashtags: string[];
+  main_source: { source_name: string; reporter?: string; published_at?: string; url: string };
+  supporting_sources: Array<{ source_name: string; reporter?: string; published_at?: string; url: string }>;
+  confirmed_facts: string[];
+  reported_claims: string[];
+  conflicts: string[];
+};
+
+type ResearchBriefView = {
+  topic: string;
+  overview: string;
+  main_points: Array<{ text: string; source_ids: number[]; evidence_level: "confirmed" | "reported" | "inference" }>;
+  confirmed_facts: string[];
+  reported_claims: string[];
+  conflicts: string[];
+};
+
+type ResearchSourceView = { id: number; source_name: string; reporter: string | null; published_at: string | null; url: string; headline: string };
+
+function ArticleWorkspace({ notify }: { notify: (message: string) => void }) {
   const [language, setLanguage] = useState<"th" | "en" | "bilingual">("th");
+  const [topic, setTopic] = useState("");
+  const [category, setCategory] = useState("ฟุตบอล");
   const [headline, setHeadline] = useState("");
-  const [paragraphs, setParagraphs] = useState(emptyParagraphs);
+  const [paragraphs, setParagraphs] = useState(["", "", "", "", ""]);
   const [closingQuestion, setClosingQuestion] = useState("");
   const [signature, setSignature] = useState("— ตลาดไม่ปิด ข่าวก็ยังไม่จบ");
+  const [hashtags, setHashtags] = useState("#Football #NewsAnalysis #TransferTruth");
+  const [evidence, setEvidence] = useState<Pick<ArticleDraft, "main_source" | "supporting_sources" | "confirmed_facts" | "reported_claims" | "conflicts"> | null>(null);
+  const [research, setResearch] = useState<ResearchBriefView | null>(null);
+  const [researchSources, setResearchSources] = useState<ResearchSourceView[]>([]);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showJson, setShowJson] = useState(false);
   const [articleId, setArticleId] = useState<number | null>(null);
-  const [workflowStatus, setWorkflowStatus] = useState("unsaved");
+  const [workflowStatus, setWorkflowStatus] = useState("waiting-research");
   const [working, setWorking] = useState(false);
-  const selectedSources = useMemo(() => selectedNews.map((item) => ({
-    source_name: item.source_name || "Unknown source",
-    reporter: item.reporter || undefined,
-    published_at: item.published_at || undefined,
-    url: item.canonical_url,
-    headline: item.headline,
-    article_text: item.clean_text || item.headline,
-    source_type: (["official", "original", "reporter", "outlet"].includes(item.source_type || "") ? item.source_type : "outlet") as "official" | "original" | "reporter" | "outlet",
-    reported_claims: [item.clean_text || item.headline],
-  })), [selectedNews]);
-  const article = useMemo(() => ({
+  const article = useMemo<ArticleDraft>(() => ({
     language,
-    pattern: "perspective" as const,
-    category: "ฟุตบอล",
+    pattern: "perspective",
+    category,
     label: "มุมมอง",
     headline,
     paragraphs,
     closing_question: closingQuestion,
     signature,
-    hashtags: ["#TransferNews", "#Football", "#TransferTruth"],
-    main_source: selectedSources[0] ? { source_name: selectedSources[0].source_name, reporter: selectedSources[0].reporter, published_at: selectedSources[0].published_at, url: selectedSources[0].url } : { source_name: "", url: "" },
-    supporting_sources: selectedSources.slice(1).map((source) => ({ source_name: source.source_name, reporter: source.reporter, published_at: source.published_at, url: source.url })),
-    confirmed_facts: [] as string[],
-    reported_claims: selectedSources.map((source) => source.article_text).filter(Boolean),
-    conflicts: [] as string[],
-  }), [closingQuestion, headline, language, paragraphs, selectedSources, signature]);
+    hashtags: hashtags.split(/\s+/).map((item) => item.trim()).filter((item) => /^#[\p{L}\p{N}_-]+$/u.test(item)).slice(0, 8),
+    main_source: evidence?.main_source ?? { source_name: "", url: "" },
+    supporting_sources: evidence?.supporting_sources ?? [],
+    confirmed_facts: evidence?.confirmed_facts ?? [],
+    reported_claims: evidence?.reported_claims ?? [],
+    conflicts: evidence?.conflicts ?? [],
+  }), [category, closingQuestion, evidence, hashtags, headline, language, paragraphs, signature]);
 
   const updateParagraph = (index: number, value: string) => setParagraphs((items) => items.map((item, current) => current === index ? value : item));
   const validate = async () => {
+    if (!evidence) return notify("กรุณา Research หัวข้อก่อนตรวจ Draft");
     const response = await fetch("/api/v1/articles/validate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ article }) });
     const payload = await response.json() as { data?: ValidationResult; error?: { message?: string } };
     if (!response.ok || !payload.data) return notify(payload.error?.message || "ตรวจบทความไม่สำเร็จ");
@@ -330,39 +402,46 @@ function ArticleWorkspace({ notify, selectedNews }: { notify: (message: string) 
     notify(`Readiness Score ${payload.data.readiness_score}/100`);
   };
 
-  const generateWithAi = async () => {
-    if (!selectedSources.length) {
-      notify("กรุณากลับไปหน้า Dashboard แล้วเลือกข่าวอย่างน้อย 1 ข่าว");
-      return;
-    }
+  const researchAndBuildDraft = async () => {
+    if (topic.trim().length < 2) return notify("กรอกหัวข้อหรือเหตุการณ์ที่ต้องการค้นหา");
+    const brandHashtags = hashtags.split(/\s+/).filter((item) => item.startsWith("#"));
+    if (brandHashtags.length < 3) return notify("กรอก Hashtag อย่างน้อย 3 รายการ");
     setWorking(true);
+    setWorkflowStatus("semantic-research");
     try {
-      const response = await fetch("/api/v1/articles/generate", {
+      const response = await fetch("/api/v1/research/draft", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          language,
-          category: "ฟุตบอล",
-          signature,
-          brand_hashtags: ["#TransferNews", "#Football", "#TransferTruth"],
-          sources: selectedSources,
-        }),
+        body: JSON.stringify({ keyword: topic, language, category, signature, brand_hashtags: brandHashtags }),
       });
-      const payload = await response.json() as { data?: { article?: typeof article; validation?: ValidationResult }; error?: { message?: string } };
-      if (!response.ok || !payload.data?.article) return notify(payload.error?.message || "Workers AI สร้างบทความไม่สำเร็จ");
-      setHeadline(payload.data.article.headline);
-      setParagraphs(payload.data.article.paragraphs);
-      setClosingQuestion(payload.data.article.closing_question);
-      setSignature(payload.data.article.signature);
+      const payload = await response.json() as { data?: { article?: ArticleDraft; validation?: ValidationResult; research?: ResearchBriefView; selected_sources?: ResearchSourceView[] }; error?: { message?: string; details?: string[] } };
+      if (!response.ok || !payload.data?.article || !payload.data.research) {
+        setWorkflowStatus("research-needed");
+        return notify(payload.error?.message || "AI Research และสร้าง Draft ไม่สำเร็จ");
+      }
+      const draft = payload.data.article;
+      setHeadline(draft.headline);
+      setParagraphs(draft.paragraphs);
+      setClosingQuestion(draft.closing_question);
+      setSignature(draft.signature);
+      setHashtags(draft.hashtags.join(" "));
+      setEvidence({ main_source: draft.main_source, supporting_sources: draft.supporting_sources, confirmed_facts: draft.confirmed_facts, reported_claims: draft.reported_claims, conflicts: draft.conflicts });
+      setResearch(payload.data.research);
+      setResearchSources(payload.data.selected_sources ?? []);
       setValidation(payload.data.validation ?? null);
+      setArticleId(null);
       setWorkflowStatus("ai-draft");
-      notify(`Workers AI สร้าง Draft จากข่าวจริง ${selectedSources.length} แหล่งแล้ว`);
+      notify(`รวมข้อมูลจาก ${payload.data.selected_sources?.length ?? 0} แหล่ง และสร้าง Draft แล้ว`);
+    } catch {
+      setWorkflowStatus("research-needed");
+      notify("เชื่อมต่อ AI Research ไม่สำเร็จ กรุณาลองใหม่");
     } finally {
       setWorking(false);
     }
   };
 
   const saveRevision = async () => {
+    if (!evidence) return notify("กรุณา Research และสร้าง Draft ก่อนบันทึก");
     setWorking(true);
     try {
       const response = await fetch("/api/v1/articles", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ article, article_id: articleId ?? undefined }) });
@@ -393,28 +472,34 @@ function ArticleWorkspace({ notify, selectedNews }: { notify: (message: string) 
   };
 
   return (
-    <section className="grid gap-4 2xl:grid-cols-[1.35fr_.65fr]">
-      <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
-        <div className={`mb-5 rounded-xl border p-4 ${selectedNews.length ? "border-[#cddbf8] bg-[#f5f8ff]" : "border-[#f0c9cc] bg-[#fff7f7]"}`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><p className="text-[10px] font-bold uppercase tracking-[.14em] text-[#3f6ad8]">ข่าวต้นทางที่เลือก</p><h3 className="mt-1 text-sm font-extrabold text-[#273044]">{selectedNews.length ? `${selectedNews.length} ข่าวพร้อมส่งให้ AI` : "ยังไม่ได้เลือกข่าว"}</h3></div>
-            <span className="rounded-full bg-white px-3 py-1 text-[9px] font-bold text-[#596372] shadow-sm">Main + supporting sources</span>
-          </div>
-          {selectedNews.length ? <div className="mt-3 space-y-2">{selectedNews.map((item, index) => <div key={item.id} className="flex items-start gap-3 rounded-lg bg-white p-3"><span className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-full text-[9px] font-extrabold ${index === 0 ? "bg-[#3f6ad8] text-white" : "bg-[#e9efff] text-[#3f6ad8]"}`}>{index + 1}</span><div className="min-w-0"><p className="line-clamp-2 text-[11px] font-bold leading-5 text-[#303949]">{item.headline}</p><p className="mt-1 text-[9px] text-[#89919d]">{item.source_name || "Unknown source"} · {item.reporter || "ไม่ระบุ Reporter"}</p></div></div>)}</div> : <p className="mt-2 text-[10px] leading-5 text-[#9a5b61]">กลับไปหน้า Dashboard เลือกข่าว แล้วกด “สร้างบทความด้วย AI”</p>}
+    <section className="space-y-4">
+      <article className="rounded-[22px] border border-[#dfe6f1] bg-[linear-gradient(135deg,#f7faff,#fff)] p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#4c70bd]">Step 1–3 · Semantic research → Evidence brief → Original draft</p><h2 className="mt-1 flex items-center gap-2 text-lg font-extrabold"><WandSparkles className="size-5 text-[#4c70bd]" />ค้นหาด้วยความหมายและสร้าง Draft</h2><p className="mt-2 max-w-3xl text-[10px] leading-5 text-[#737b88]">AI จะค้นจากข่าว RSS ใน D1 โดยดูเหตุการณ์ บุคคล การตัดสินใจ เหตุผล และผลกระทบ ไม่ได้หาเฉพาะคำที่สะกดเหมือนกัน จากนั้นรวมข้อมูลที่ช่วยเติม Article Pattern ให้ครบก่อนเขียนใหม่ด้วยถ้อยคำต้นฉบับ</p></div><div className="flex flex-wrap gap-2">{["1 Research", "2 Gather facts", "3 Build article"].map((step, index) => <span key={step} className={`rounded-full px-3 py-1.5 text-[9px] font-bold ${working && workflowStatus === "semantic-research" ? index === 0 ? "bg-[#4c70bd] text-white" : "bg-[#edf2fb] text-[#71809a]" : research ? "bg-[#eaf9f2] text-[#26795f]" : "bg-[#edf2fb] text-[#71809a]"}`}>{step}</span>)}</div></div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_150px_220px]">
+          <div><label htmlFor="research-topic" className="text-[10px] font-bold text-[#586172]">หัวข้อ เหตุการณ์ หรือคำถาม</label><div className="relative mt-2"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#9299a4]" /><input id="research-topic" value={topic} onChange={(event) => setTopic(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void researchAndBuildDraft(); }} placeholder="เช่น เหตุใดอาร์เซนอลอาจเปลี่ยนเป้าหมายกองหน้า" className="h-12 w-full rounded-xl border border-[#d9e0eb] bg-white pl-10 pr-3 text-xs outline-none focus:border-[#6383ca] focus:ring-4 focus:ring-[#4c70bd]/10" /></div></div>
+          <div><label htmlFor="article-category" className="text-[10px] font-bold text-[#586172]">Category</label><input id="article-category" value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 h-12 w-full rounded-xl border border-[#d9e0eb] bg-white px-3 text-xs outline-none focus:border-[#6383ca]" /></div>
+          <button type="button" onClick={() => void researchAndBuildDraft()} disabled={working} className="mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#18243a] px-5 text-[11px] font-bold text-white shadow-lg disabled:opacity-60">{working ? <LoaderCircle className="size-4 animate-spin" /> : <Bot className="size-4" />}{working ? "AI กำลังรวบรวมข้อมูล..." : "Research & Build Draft"}</button>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Perspective pattern</p><h2 className="mt-1 text-lg font-extrabold">Article editor</h2></div><div className="grid grid-cols-3 rounded-xl bg-[#f1eee8] p-1">{(["th", "en", "bilingual"] as const).map((item) => <button type="button" key={item} onClick={() => setLanguage(item)} className={`rounded-lg px-3 py-2 text-[9px] font-bold ${language === item ? "bg-white text-[#222c3f] shadow-sm" : "text-[#858b96]"}`}>{item}</button>)}</div></div>
-        <label htmlFor="article-headline" className="mt-5 block text-[10px] font-bold text-[#606775]">พาดหัวเหตุและผล</label><textarea id="article-headline" value={headline} onChange={(event) => setHeadline(event.target.value)} rows={2} className="mt-2 w-full resize-none rounded-xl border border-[#dedad3] bg-[#fffefa] p-3 text-sm font-bold leading-6 outline-none focus:border-[#dc626a] focus:ring-4 focus:ring-[#ef4b55]/10" />
-        <div className="mt-4 space-y-3">{paragraphs.map((paragraph, index) => <div key={index}><div className="mb-1.5 flex items-center justify-between"><label htmlFor={`paragraph-${index}`} className="text-[10px] font-bold text-[#606775]">ย่อหน้าที่ {index + 1}</label><span className="text-[9px] text-[#9ba0a9]">{paragraph.length} chars</span></div><textarea id={`paragraph-${index}`} value={paragraph} onChange={(event) => updateParagraph(index, event.target.value)} rows={3} className="w-full resize-y rounded-xl border border-[#e1ddd6] bg-[#fffefa] p-3 text-xs leading-5 outline-none focus:border-[#dc626a]" /></div>)}</div>
-        <label htmlFor="article-signature" className="mt-4 block text-[10px] font-bold text-[#606775]">Signature</label><input id="article-signature" value={signature} onChange={(event) => setSignature(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dedad3] bg-[#fffefa] px-3 text-xs outline-none focus:border-[#dc626a]" />
-        <label htmlFor="article-closing" className="mt-4 block text-[10px] font-bold text-[#606775]">คำถามปิดท้าย</label><textarea id="article-closing" value={closingQuestion} onChange={(event) => setClosingQuestion(event.target.value)} rows={2} className="mt-2 w-full resize-y rounded-xl border border-[#e1ddd6] bg-[#fffefa] p-3 text-xs leading-5 outline-none focus:border-[#dc626a]" />
-        <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void generateWithAi()} disabled={working || !selectedNews.length} className="inline-flex items-center gap-2 rounded-xl bg-[#3f6ad8] px-4 py-3 text-[11px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-45"><Bot className="size-4" />{working ? "AI กำลังเขียน..." : "สร้างบทความจากข่าวที่เลือก"}</button><button type="button" onClick={() => void validate()} disabled={working || !headline.trim()} className="inline-flex items-center gap-2 rounded-xl bg-[#ef4b55] px-4 py-3 text-[11px] font-bold text-white disabled:opacity-60"><ShieldCheck className="size-4" />Validate draft</button><button type="button" onClick={() => void saveRevision()} disabled={working || !headline.trim()} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664] disabled:opacity-60"><Save className="size-4" />Save revision</button><button type="button" onClick={() => setShowJson(!showJson)} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664]"><FileJson2 className="size-4" />{showJson ? "Hide JSON" : "Preview JSON"}</button></div>
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row"><div className="grid grid-cols-3 rounded-xl bg-[#edf1f6] p-1">{(["th", "en", "bilingual"] as const).map((item) => <button type="button" key={item} onClick={() => setLanguage(item)} className={`rounded-lg px-3 py-2 text-[9px] font-bold ${language === item ? "bg-white text-[#222c3f] shadow-sm" : "text-[#858b96]"}`}>{item}</button>)}</div><input aria-label="Hashtags" value={hashtags} onChange={(event) => setHashtags(event.target.value)} className="h-10 min-w-0 flex-1 rounded-xl border border-[#dfe4eb] bg-white px-3 text-[10px] outline-none" /></div>
+        {research ? <div className="mt-5 grid gap-4 border-t border-[#e2e8f0] pt-5 xl:grid-cols-[1.1fr_.9fr]"><div><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#4c70bd]">AI Research Brief</p><h3 className="mt-1 text-sm font-extrabold">{research.topic}</h3><p className="mt-2 text-[11px] leading-5 text-[#67707d]">{research.overview}</p><div className="mt-3 space-y-2">{research.main_points.map((point, index) => <div key={`${point.text}-${index}`} className="flex items-start gap-2 rounded-xl bg-white p-3 text-[10px] leading-5 text-[#59616e]"><span className={`mt-1 size-2 shrink-0 rounded-full ${point.evidence_level === "confirmed" ? "bg-[#3caf7a]" : point.evidence_level === "inference" ? "bg-[#d89a32]" : "bg-[#4c70bd]"}`} /><span><strong className="mr-1 uppercase">{point.evidence_level}:</strong>{point.text}</span></div>)}</div></div><div><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#8a909a]">Selected reports · {researchSources.length}</p><div className="mt-3 space-y-2">{researchSources.map((source) => <a key={source.id} href={source.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-[#e3e7ed] bg-white p-3 hover:border-[#8ea7da]"><p className="line-clamp-2 text-[10px] font-bold leading-4 text-[#354052]">{source.headline}</p><p className="mt-1 text-[9px] text-[#8d949e]">{source.source_name}{source.reporter ? ` · ${source.reporter}` : ""}</p></a>)}</div></div></div> : null}
       </article>
-      <aside className="space-y-4">
+
+      <div className="grid gap-4 2xl:grid-cols-[1.35fr_.65fr]">
+        <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]">
+          <div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Step 4 · Perspective pattern</p><h2 className="mt-1 flex items-center gap-2 text-lg font-extrabold"><BookOpenCheck className="size-5 text-[#2f7c61]" />Original article editor</h2></div><span className={`rounded-full px-3 py-1.5 text-[9px] font-bold ${evidence ? "bg-[#eaf9f2] text-[#26795f]" : "bg-[#f1eee8] text-[#7e8490]"}`}>{evidence ? "Evidence attached" : "Waiting for research"}</span></div>
+          <label htmlFor="article-headline" className="mt-5 block text-[10px] font-bold text-[#606775]">พาดหัวเหตุและผล</label><textarea id="article-headline" value={headline} onChange={(event) => setHeadline(event.target.value)} rows={2} placeholder="AI จะสร้างหลังรวบรวมข้อมูล" className="mt-2 w-full resize-none rounded-xl border border-[#dedad3] bg-[#fffefa] p-3 text-sm font-bold leading-6 outline-none focus:border-[#dc626a] focus:ring-4 focus:ring-[#ef4b55]/10" />
+          <div className="mt-4 space-y-3">{paragraphs.map((paragraph, index) => <div key={index}><div className="mb-1.5 flex items-center justify-between"><label htmlFor={`paragraph-${index}`} className="text-[10px] font-bold text-[#606775]">ย่อหน้าที่ {index + 1}</label><span className="text-[9px] text-[#9ba0a9]">{paragraph.length} chars</span></div><textarea id={`paragraph-${index}`} value={paragraph} onChange={(event) => updateParagraph(index, event.target.value)} rows={3} className="w-full resize-y rounded-xl border border-[#e1ddd6] bg-[#fffefa] p-3 text-xs leading-5 outline-none focus:border-[#dc626a]" /></div>)}</div>
+          <label htmlFor="closing-question" className="mt-4 block text-[10px] font-bold text-[#606775]">Closing question</label><textarea id="closing-question" value={closingQuestion} onChange={(event) => setClosingQuestion(event.target.value)} rows={2} className="mt-2 w-full resize-y rounded-xl border border-[#dedad3] bg-[#fffefa] p-3 text-xs outline-none focus:border-[#dc626a]" />
+          <label htmlFor="article-signature" className="mt-4 block text-[10px] font-bold text-[#606775]">Signature</label><input id="article-signature" value={signature} onChange={(event) => setSignature(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-[#dedad3] bg-[#fffefa] px-3 text-xs outline-none focus:border-[#dc626a]" />
+          <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void validate()} disabled={working || !evidence} className="inline-flex items-center gap-2 rounded-xl bg-[#ef4b55] px-4 py-3 text-[11px] font-bold text-white disabled:opacity-40"><ShieldCheck className="size-4" />Validate draft</button><button type="button" onClick={() => void saveRevision()} disabled={working || !evidence} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664] disabled:opacity-40"><Save className="size-4" />Save revision</button><button type="button" onClick={() => setShowJson(!showJson)} className="inline-flex items-center gap-2 rounded-xl border border-[#dedad3] bg-white px-4 py-3 text-[11px] font-bold text-[#4e5664]"><FileJson2 className="size-4" />{showJson ? "Hide JSON" : "Preview JSON"}</button></div>
+        </article>
+        <aside className="space-y-4">
         <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Readiness gate</p><h2 className="mt-1 text-lg font-extrabold">{validation ? `${validation.readiness_score}/100` : "Not checked"}</h2></div><div className={`grid size-12 place-items-center rounded-2xl ${validation?.readiness_score && validation.readiness_score >= 85 ? "bg-[#eaf9f2] text-[#258064]" : "bg-[#fff2e8] text-[#b46329]"}`}><ShieldCheck className="size-6" /></div></div>{validation ? <div className="mt-4"><div className="h-2 overflow-hidden rounded-full bg-[#ece9e3]"><div className="h-full rounded-full bg-[linear-gradient(90deg,#ef4b55,#ff777e)]" style={{ width: `${validation.readiness_score}%` }} /></div><p className="mt-3 text-[10px] font-bold uppercase tracking-[.1em] text-[#6a7180]">Status: {validation.status}</p><div className="mt-3 space-y-2">{validation.readiness_notes.length ? validation.readiness_notes.map((note) => <p key={note} className="flex items-start gap-2 text-[10px] leading-4 text-[#777e89]"><ChevronRight className="mt-0.5 size-3 shrink-0 text-[#ef4b55]" />{note}</p>) : <p className="text-[10px] text-[#287a60]">ผ่านกฎโครงสร้างและภาษา</p>}</div></div> : <p className="mt-4 text-[10px] leading-5 text-[#838994]">กด Validate draft เพื่อตรวจแหล่งข่าว โครงสร้าง ภาษา และข้อความหลุดก่อนอนุมัติ</p>}</article>
         <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.15em] text-[#9a9ea7]">Approval workflow</p><h3 className="mt-1 text-sm font-extrabold capitalize">{workflowStatus}</h3></div><span className="rounded-full bg-[#f1eee8] px-2.5 py-1 text-[9px] font-bold">{articleId ? `#${articleId}` : "Not saved"}</span></div><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => void transition("review")} disabled={working || workflowStatus !== "draft"} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#edf4ff] px-3 py-2.5 text-[10px] font-bold text-[#3e67b5] disabled:cursor-not-allowed disabled:opacity-45"><Send className="size-3.5" />Request review</button><button type="button" onClick={() => void transition("approved")} disabled={working || workflowStatus !== "review" || (validation?.readiness_score ?? 0) < 85} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#eaf9f2] px-3 py-2.5 text-[10px] font-bold text-[#26795f] disabled:cursor-not-allowed disabled:opacity-45"><ThumbsUp className="size-3.5" />Approve</button></div><p className="mt-3 text-[9px] leading-4 text-[#9297a0]">ปุ่ม Approve เปิดเมื่อบทความอยู่ใน Review และ Readiness Score ≥ 85</p></article>
         <article className="rounded-[22px] border border-[#e7e4de] bg-white p-5 shadow-[0_10px_30px_rgba(31,41,58,.04)]"><div className="flex items-center gap-2"><Languages className="size-4 text-[#466fc0]" /><h3 className="text-xs font-extrabold">Language policy</h3></div><p className="mt-2 text-[10px] leading-5 text-[#7b818c]">ค่า <strong>{language}</strong> จะถูกตรวจว่าไม่มีภาษาอื่นหลุดเป็นประโยคยาว และลบ SOURCE, JSON, advertisement หรือ prompt residue</p></article>
         {showJson ? <pre className="max-h-[520px] overflow-auto rounded-[22px] bg-[#101b2d] p-4 text-[9px] leading-4 text-[#b8c4d8] shadow-xl">{JSON.stringify(article, null, 2)}</pre> : null}
-      </aside>
+        </aside>
+      </div>
     </section>
   );
 }
@@ -533,10 +618,10 @@ function PublishingWorkspace({ notify }: { notify: (message: string) => void }) 
   );
 }
 
-export default function EditorialWorkspace({ section, notify, selectedNews = [] }: { section: InteractiveSection; notify: (message: string) => void; selectedNews?: SelectedNewsSource[] }) {
+export default function EditorialWorkspace({ section, notify }: { section: InteractiveSection; notify: (message: string) => void }) {
   if (section === "favorites") return <FavoritesWorkspace notify={notify} />;
   if (section === "sources") return <SourcesWorkspace notify={notify} />;
   if (section === "fact-check") return <FactCheckWorkspace notify={notify} />;
-  if (section === "articles") return <ArticleWorkspace notify={notify} selectedNews={selectedNews} />;
+  if (section === "articles") return <ArticleWorkspace notify={notify} />;
   return <PublishingWorkspace notify={notify} />;
 }

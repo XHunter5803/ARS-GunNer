@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Legacy upload fragments kept for reference but not imported by the app.
     "chatgpt-auth.ts",
     "route.ts",
     "route (2).ts",

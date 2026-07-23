@@ -2,13 +2,13 @@
 
 Editorial intelligence dashboard for discovering football news, comparing sources, creating evidence-aware perspective articles, and scheduling reviewed social posts.
 
-## Version 0.5.4 capabilities
-
-- ArchitectUI-inspired responsive admin dashboard with a light sidebar, compact header, page-title actions, KPI widgets, and mobile navigation
-- End-to-end editor flow: filter by news outlet or Reporter, save favorites, select real feed items, and send the selection to Workers AI
+## Version 0.6.0 capabilities
 
 - Argon-inspired responsive newsroom dashboard
 - Favorites and source management backed by Cloudflare D1
+- Semantic topic research across recent RSS reports using meaning, people, events, decisions, and consequences instead of exact-word matching
+- AI Research Briefs that preserve source links, separate facts from claims, record conflicts, and feed an original Article Pattern draft
+- Daily reporter and news-outlet suggestions derived from the last 14 days of D1 coverage, with one-click saving to Favorites
 - RSS/Atom parsing, canonical-link deduplication, event clustering, and Cron ingestion
 - Source ranking, confirmed-fact/report-claim separation, contradiction reporting, and readiness scoring
 - Thai, English, and bilingual Article Pattern generation with revision history and approval gates
@@ -19,8 +19,9 @@ Editorial intelligence dashboard for discovering football news, comparing source
 ## Editorial flow
 
 ```text
-Discover → Clean → Deduplicate → Cluster → Fact-check → Select main source
-→ Draft perspective article → Validate language/readiness → Save revision
+Enter topic → Semantic rank recent reports → Extract sourced main points
+→ Separate facts, claims, and conflicts → Select main and supporting sources
+→ Write an original perspective article → Validate language/readiness → Save revision
 → Preview → Approve → Schedule → Dispatch
 ```
 
@@ -36,6 +37,8 @@ Only approved articles with a readiness score of at least 85 can enter the publi
 - `POST /api/v1/pipeline/analyze`
 - `POST /api/v1/articles/validate`
 - `POST /api/v1/articles/generate`
+- `POST /api/v1/research/draft`
+- `GET /api/v1/suggestions`
 - `GET|POST|PATCH /api/v1/articles`
 - `POST /api/v1/publishing/preview`
 - `GET|POST|PATCH /api/v1/publishing/jobs`
@@ -114,11 +117,11 @@ Provider variables:
 - Telegram: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
 - Manual Cron/API dispatch: `CRON_SECRET`
 
-Version 0.5.4 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
+Version 0.6.0 accepts Telegram jobs only. Turn `SOCIAL_PUBLISHING_ENABLED=true` on only after verifying the target chat, preview output, queue schedule, access controls, and both Telegram values.
 
 ## Safety notes
 
-- Article generation must use only supplied source material.
+- Article generation must use only the selected source material. It may add original transitions and clearly marked analysis, but never unsupported facts.
 - A low readiness score blocks approval and scheduling.
 - Provider responses are truncated before storage; secrets are never included in API responses.
 - Publishing jobs use deterministic keys to prevent duplicate schedules.

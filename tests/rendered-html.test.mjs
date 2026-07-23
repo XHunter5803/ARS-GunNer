@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const developmentPreviewMeta =
@@ -34,7 +35,7 @@ test("renders development preview metadata", async () => {
   assert.match(await response.text(), developmentPreviewMeta);
 });
 
-test("renders the ARS GunNer newsroom shell with live discovery disclosure", async () => {
+test("renders the ARS GunNer newsroom shell with demo disclosure", async () => {
   const worker = await workerPromise;
   const response = await worker.fetch(
     new Request("http://localhost/", { headers: { accept: "text/html" } }),
@@ -46,10 +47,16 @@ test("renders the ARS GunNer newsroom shell with live discovery disclosure", asy
   assert.equal(response.status, 200);
   assert.match(html, /Newsroom intelligence/i);
   assert.match(html, /Live discovery feed/i);
-  assert.match(html, /ข้อมูล RSS จริงจาก D1/i);
+  assert.match(html, /Demo data/i);
   assert.match(html, /Article readiness/i);
-  assert.match(html, /สำนักข่าวและ Reporter จากข่าวจริง/i);
-  assert.match(html, /สร้างบทความจากข่าวที่เลือก/i);
+});
+
+test("ships the semantic Draft workflow and daily discovery controls", async () => {
+  const source = await readFile(new URL("../app/editorial-workspaces.tsx", import.meta.url), "utf8");
+  assert.match(source, /Research & Build Draft/i);
+  assert.match(source, /Semantic research/i);
+  assert.match(source, /Daily discovery/i);
+  assert.match(source, /Keep in Favorites/i);
 });
 
 test("health endpoint returns a structured service response", async () => {
@@ -64,7 +71,7 @@ test("health endpoint returns a structured service response", async () => {
   assert.equal(response.status, 200);
   assert.equal(payload.data.status, "ok");
   assert.equal(payload.data.service, "ARS GunNer API");
-  assert.equal(payload.data.version, "0.5.4");
+  assert.equal(payload.data.version, "0.6.0");
   assert.equal(typeof payload.requestId, "string");
   assert.equal(response.headers.get("x-request-id"), payload.requestId);
 });

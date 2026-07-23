@@ -30,5 +30,12 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "chatgpt-auth.ts",
+    "route.ts",
+    "route (2).ts",
+    "route (3).ts",
+    "social-publishing.ts"
+  ]
 }
